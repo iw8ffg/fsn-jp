@@ -69,34 +69,13 @@ async function activateRoot(root: string): Promise<void> {
   }
   bootActivatedPath = root;
   try {
-    console.log('[activateRoot] calling listDir', root);
-    const t0 = performance.now();
     const children = await unwrap(fsn.listDir(root, 1));
-    console.log('[activateRoot] listDir returned', children.length, 'entries in', Math.round(performance.now() - t0), 'ms');
-    try {
-      console.log('[activateRoot] upsertNodes start');
-      useFsStore.getState().upsertNodes([
-        { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
-        ...children,
-      ]);
-      console.log('[activateRoot] upsertNodes ok');
-    } catch (e) {
-      console.error('[activateRoot] upsertNodes threw', e);
-      throw e;
-    }
-    try {
-      console.log('[activateRoot] setRoot start');
-      useFsStore.getState().setRoot(root);
-      console.log('[activateRoot] setRoot ok');
-    } catch (e) {
-      console.error('[activateRoot] setRoot threw', e);
-      throw e;
-    }
-    console.log('[activateRoot] firing watchRoot in background');
-    void fsn.watchRoot(root)
-      .then(() => console.log('[activateRoot] watchRoot resolved'))
-      .catch((e) => console.warn('[activateRoot] watchRoot failed (tolerated)', e));
-    console.log('[activateRoot] done');
+    useFsStore.getState().upsertNodes([
+      { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
+      ...children,
+    ]);
+    useFsStore.getState().setRoot(root);
+    void fsn.watchRoot(root).catch(() => { /* tolerated */ });
   } catch (err) {
     bootActivatedPath = null;
     throw err;

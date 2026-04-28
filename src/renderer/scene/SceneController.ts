@@ -124,83 +124,66 @@ export class SceneController {
   }
 
   #rebuild(): void {
-    try {
-      const t0 = performance.now();
-      const { nodes, root, expanded } = useFsStore.getState();
-      const showHidden = useUiStore.getState().hiddenVisible;
-      console.log('[SceneController.#rebuild] start; nodes=', nodes.size, 'root=', root);
-      if (!root) { this.nodes.clear(); return; }
+    const { nodes, root, expanded } = useFsStore.getState();
+    const showHidden = useUiStore.getState().hiddenVisible;
+    if (!root) { this.nodes.clear(); return; }
 
-      const visible: FsNode[] = [];
-      const isVisible = (n: FsNode): boolean => {
-        if (n.path === root) return true;
-        const parent = parentOf(n.path);
-        if (!nodes.has(parent)) return false;
-        return parent === root || expanded.has(parent);
-      };
-      for (const n of nodes.values()) {
-        if (n.isHidden && !showHidden) continue;
-        if (isVisible(n)) visible.push(n);
-      }
-      console.log('[SceneController.#rebuild] visible=', visible.length);
-
-      const filesPerParent = new Map<string, number>();
-      for (const n of visible) {
-        if (n.kind !== 'file') continue;
-        const p = parentOf(n.path);
-        filesPerParent.set(p, (filesPerParent.get(p) ?? 0) + 1);
-      }
-
-      console.log('[SceneController.#rebuild] computing layout');
-      const positions = this.layout.computeFor(visible, root);
-      console.log('[SceneController.#rebuild] layout done; positions=', positions.size);
-
-      const visiblePaths = new Set(visible.map(v => v.path));
-      for (const m of this.nodes.allMeshes()) {
-        const p = m.userData.path as string;
-        if (!visiblePaths.has(p)) this.nodes.remove(p);
-      }
-      // Mirror removal for labels (directories only, but cheap to scan all tracked).
-      for (const p of this.labels.paths()) {
-        if (!visiblePaths.has(p)) this.labels.remove(p);
-      }
-      let upserted = 0;
-      for (const n of visible) {
-        const pos = positions.get(n.path);
-        if (!pos) continue;
-        if (n.kind === 'dir' || n.kind === 'locked') {
-          this.nodes.upsertPedestal(n, pos);
-          this.labels.upsertLabel(n.path, n.name, pos);
-          upserted++;
-        } else {
-          const parent = parentOf(n.path);
-          if ((filesPerParent.get(parent) ?? 0) > GRID_FALLBACK_THRESHOLD) continue;
-          this.nodes.upsertFileBlock(n, pos);
-          upserted++;
-        }
-      }
-
-      // Derive parent->child connector lines, pedestal-to-pedestal only.
-      const pairs: { from: THREE.Vector3; to: THREE.Vector3 }[] = [];
-      for (const n of visible) {
-        if (n.path === root) continue;
-        if (n.kind !== 'dir' && n.kind !== 'locked') continue;
-        const parent = parentOf(n.path);
-        const pParent = positions.get(parent);
-        const pChild = positions.get(n.path);
-        if (!pParent || !pChild) continue;
-        pairs.push({
-          from: new THREE.Vector3(pParent.x, pParent.y + 0.5, pParent.z),
-          to: new THREE.Vector3(pChild.x, pChild.y + 0.5, pChild.z),
-        });
-      }
-      this.edges.setEdges(pairs);
-
-      console.log('[SceneController.#rebuild] done in', Math.round(performance.now() - t0), 'ms; upserted=', upserted, 'edges=', pairs.length);
-    } catch (e) {
-      console.error('[SceneController.#rebuild] threw', e);
-      throw e;
+    const visible: FsNode[] = [];
+    const isVisible = (n: FsNode): boolean => {
+      if (n.path === root) return true;
+      const parent = parentOf(n.path);
+      if (!nodes.has(parent)) return false;
+      return parent === root || expanded.has(parent);
+    };
+    for (const n of nodes.values()) {
+      if (n.isHidden && !showHidden) continue;
+      if (isVisible(n)) visible.push(n);
     }
+
+    const filesPerParent = new Map<string, number>();
+    for (const n of visible) {
+      if (n.kind !== 'file') continue;
+      const p = parentOf(n.path);
+      filesPerParent.set(p, (filesPerParent.get(p) ?? 0) + 1);
+    }
+
+    const positions = this.layout.computeFor(visible, root);
+
+    const visiblePaths = new Set(visible.map(v => v.path));
+    for (const m of this.nodes.allMeshes()) {
+      const p = m.userData.path as string;
+      if (!visiblePaths.has(p)) this.nodes.remove(p);
+    }
+    for (const p of this.labels.paths()) {
+      if (!visiblePaths.has(p)) this.labels.remove(p);
+    }
+    for (const n of visible) {
+      const pos = positions.get(n.path);
+      if (!pos) continue;
+      if (n.kind === 'dir' || n.kind === 'locked') {
+        this.nodes.upsertPedestal(n, pos);
+        this.labels.upsertLabel(n.path, n.name, pos);
+      } else {
+        const parent = parentOf(n.path);
+        if ((filesPerParent.get(parent) ?? 0) > GRID_FALLBACK_THRESHOLD) continue;
+        this.nodes.upsertFileBlock(n, pos);
+      }
+    }
+
+    const pairs: { from: THREE.Vector3; to: THREE.Vector3 }[] = [];
+    for (const n of visible) {
+      if (n.path === root) continue;
+      if (n.kind !== 'dir' && n.kind !== 'locked') continue;
+      const parent = parentOf(n.path);
+      const pParent = positions.get(parent);
+      const pChild = positions.get(n.path);
+      if (!pParent || !pChild) continue;
+      pairs.push({
+        from: new THREE.Vector3(pParent.x, pParent.y + 0.5, pParent.z),
+        to: new THREE.Vector3(pChild.x, pChild.y + 0.5, pChild.z),
+      });
+    }
+    this.edges.setEdges(pairs);
   }
 
   #applyFocus(): void {
