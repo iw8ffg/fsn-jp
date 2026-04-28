@@ -48,4 +48,24 @@ describe('Persistence', () => {
     const cfg = await p.load();
     expect(cfg).toEqual({ hiddenVisible: false });
   });
+
+  it('serializes concurrent saves; final value wins and JSON is valid', async () => {
+    const concurrent = path.join(dir, 'concurrent.json');
+    const p = new Persistence(concurrent);
+    const writes = Array.from({ length: 25 }, (_, i) =>
+      p.save({ lastRoot: `C:/r${i}`, hiddenVisible: i % 2 === 0 }),
+    );
+    await Promise.all(writes);
+    const raw = await fs.readFile(concurrent, 'utf8');
+    // Must be parseable (atomic rename — no torn writes).
+    const parsed = JSON.parse(raw);
+    expect(parsed).toEqual({ lastRoot: 'C:/r24', hiddenVisible: true });
+  });
+
+  it('cleans up the temp file on success (best-effort)', async () => {
+    const target = path.join(dir, 'cleanup.json');
+    const p = new Persistence(target);
+    await p.save({ lastRoot: 'C:/x', hiddenVisible: true });
+    await expect(fs.access(target + '.tmp')).rejects.toBeDefined();
+  });
 });

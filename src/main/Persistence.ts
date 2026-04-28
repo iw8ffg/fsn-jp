@@ -7,6 +7,7 @@ const DEFAULT: AppConfig = { hiddenVisible: false };
 
 export class Persistence {
   #file: string;
+  #queue: Promise<void> = Promise.resolve();
 
   constructor(file?: string) {
     this.#file = file ?? path.join(app.getPath('userData'), 'config.json');
@@ -21,8 +22,27 @@ export class Persistence {
     }
   }
 
-  async save(cfg: AppConfig): Promise<void> {
+  /**
+   * Serializes saves through an internal promise queue so concurrent callers
+   * do not interleave writes. Each save is atomic: temp file + rename.
+   */
+  save(cfg: AppConfig): Promise<void> {
+    const tail = this.#queue.then(() => this.#doSave(cfg)).catch(() => {});
+    this.#queue = tail;
+    return tail;
+  }
+
+  async #doSave(cfg: AppConfig): Promise<void> {
     await fs.mkdir(path.dirname(this.#file), { recursive: true });
-    await fs.writeFile(this.#file, JSON.stringify(cfg, null, 2));
+    const tmp = this.#file + '.tmp';
+    const json = JSON.stringify(cfg, null, 2);
+    await fs.writeFile(tmp, json);
+    try {
+      await fs.rename(tmp, this.#file);
+    } catch (err) {
+      // Best-effort cleanup of the temp file; rethrow so the caller sees the failure.
+      await fs.unlink(tmp).catch(() => {});
+      throw err;
+    }
   }
 }
