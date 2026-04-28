@@ -51,7 +51,7 @@ export class SearchService {
     try {
       await walk(normalizePath(root));
     } finally {
-      flush();
+      if (!ac.signal.aborted) flush();
       this.#cancellations.delete(id);
     }
   }
