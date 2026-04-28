@@ -4,6 +4,7 @@ import { LayoutEngine } from './LayoutEngine';
 import { NodeRenderer } from './NodeRenderer';
 import { OrbitCameraController } from './OrbitCameraController';
 import { HoverPicker } from './HoverPicker';
+import { ClickHandler } from './ClickHandler';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import type { FsNode } from '@shared/types';
@@ -15,6 +16,7 @@ export class SceneController {
   readonly camera: OrbitCameraController;
   readonly layout = new LayoutEngine();
   readonly picker: HoverPicker;
+  readonly click: ClickHandler;
   #unsubFs: () => void;
   #unsubCam: () => void;
   #unsubHover: () => void;
@@ -31,6 +33,7 @@ export class SceneController {
     this.root.scene.add(this.nodes.group);
     this.camera = new OrbitCameraController(root.camera, dom);
     this.picker = new HoverPicker(dom, root.camera, () => this.nodes.allMeshes());
+    this.click = new ClickHandler(dom, root.camera, () => this.nodes.allMeshes());
 
     this.#unsubFs = useFsStore.subscribe(() => this.#rebuild());
     this.#unsubCam = useCameraStore.subscribe(() => this.#applyFocus());
@@ -47,6 +50,7 @@ export class SceneController {
     this.#unsubCam();
     this.#unsubHover();
     this.#restoreHover();
+    this.click.dispose();
     this.picker.dispose();
     this.camera.dispose();
     this.root.scene.remove(this.nodes.group);
