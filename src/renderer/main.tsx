@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SceneCanvas } from './scene/SceneCanvas';
 import { DrivePicker } from './ui/DrivePicker';
+import { Toolbar } from './ui/Toolbar';
 import { fsn, unwrap } from './ipc/client';
 import { useFsStore } from './state/fsStore';
 import { wireFsEvents } from './ipc/wireFsEvents';
+import { wireSearch } from './ipc/wireSearch';
 
 function App() {
   const [picked, setPicked] = useState(false);
@@ -21,9 +23,11 @@ function App() {
         await fsn.watchRoot(root);
         setPicked(true);
       }} />}
+      {picked && <Toolbar />}
     </div>
   );
 }
 
 wireFsEvents();
+wireSearch();
 createRoot(document.getElementById('root')!).render(<App />);
