@@ -47,8 +47,11 @@ export class NodeRenderer {
     const category = fileTypeCategory(node.name);
     let mat = this.#fileMatByCategory.get(category);
     if (!mat) {
+      const hex = colorForFile(node.name);
       mat = new THREE.MeshStandardMaterial({
-        color: colorForFile(node.name),
+        color: hex,
+        emissive: hex,
+        emissiveIntensity: 0.55,
         roughness: 0.45,
         metalness: 0.0,
       });
