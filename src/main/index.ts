@@ -55,7 +55,17 @@ async function createWindow(): Promise<BrowserWindow> {
     // (rather than Forge's default `<name>/` subdir), so resolve directly.
     void MAIN_WINDOW_VITE_NAME;
     await win.loadFile(path.join(__dirname, '../renderer/index.html'));
+    // TEMP debug: always open DevTools in production until drive-pick hang is diagnosed.
+    win.webContents.openDevTools({ mode: 'detach' });
   }
+
+  // Enable F12 / Ctrl+Shift+I to toggle DevTools in any build.
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      win.webContents.toggleDevTools();
+    }
+  });
 
   return win;
 }

@@ -69,18 +69,34 @@ async function activateRoot(root: string): Promise<void> {
   }
   bootActivatedPath = root;
   try {
-    // depth=1: just top-level entries. Deeper expansion happens on click.
+    console.log('[activateRoot] calling listDir', root);
+    const t0 = performance.now();
     const children = await unwrap(fsn.listDir(root, 1));
-    useFsStore.getState().upsertNodes([
-      { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
-      ...children,
-    ]);
-    useFsStore.getState().setRoot(root);
-    // Start the file watcher in the background — don't block the UI on it.
-    // chokidar setup on Windows drive roots can take a while; if it errors
-    // the renderer just won't get live fs events, which is degraded but
-    // not fatal.
-    void fsn.watchRoot(root).catch(() => { /* tolerated */ });
+    console.log('[activateRoot] listDir returned', children.length, 'entries in', Math.round(performance.now() - t0), 'ms');
+    try {
+      console.log('[activateRoot] upsertNodes start');
+      useFsStore.getState().upsertNodes([
+        { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
+        ...children,
+      ]);
+      console.log('[activateRoot] upsertNodes ok');
+    } catch (e) {
+      console.error('[activateRoot] upsertNodes threw', e);
+      throw e;
+    }
+    try {
+      console.log('[activateRoot] setRoot start');
+      useFsStore.getState().setRoot(root);
+      console.log('[activateRoot] setRoot ok');
+    } catch (e) {
+      console.error('[activateRoot] setRoot threw', e);
+      throw e;
+    }
+    console.log('[activateRoot] firing watchRoot in background');
+    void fsn.watchRoot(root)
+      .then(() => console.log('[activateRoot] watchRoot resolved'))
+      .catch((e) => console.warn('[activateRoot] watchRoot failed (tolerated)', e));
+    console.log('[activateRoot] done');
   } catch (err) {
     bootActivatedPath = null;
     throw err;

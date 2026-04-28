@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { SceneRoot } from './SceneRoot';
 import { LayoutEngine } from './LayoutEngine';
 import { NodeRenderer } from './NodeRenderer';
+import { EdgeRenderer } from './EdgeRenderer';
 import { OrbitCameraController } from './OrbitCameraController';
 import { HoverPicker } from './HoverPicker';
 import { ClickHandler } from './ClickHandler';
@@ -16,6 +17,7 @@ const GRID_FALLBACK_THRESHOLD = 200;
 
 export class SceneController {
   readonly nodes: NodeRenderer;
+  readonly edges: EdgeRenderer;
   readonly camera: OrbitCameraController;
   readonly layout = new LayoutEngine();
   readonly picker: HoverPicker;
@@ -37,6 +39,8 @@ export class SceneController {
   constructor(private root: SceneRoot, dom: HTMLElement) {
     this.nodes = new NodeRenderer();
     this.root.scene.add(this.nodes.group);
+    this.edges = new EdgeRenderer();
+    this.root.scene.add(this.edges.object);
     this.camera = new OrbitCameraController(root.camera, dom);
     this.picker = new HoverPicker(dom, root.camera, () => this.nodes.allMeshes());
     this.click = new ClickHandler(dom, root.camera, () => this.nodes.allMeshes());
@@ -74,6 +78,8 @@ export class SceneController {
     this.camera.dispose();
     this.root.scene.remove(this.nodes.group);
     this.nodes.dispose();
+    this.root.scene.remove(this.edges.object);
+    this.edges.dispose();
   }
 
   #applyHover = (() => {
@@ -112,52 +118,77 @@ export class SceneController {
   }
 
   #rebuild(): void {
-    const { nodes, root, expanded } = useFsStore.getState();
-    const showHidden = useUiStore.getState().hiddenVisible;
-    if (!root) { this.nodes.clear(); return; }
+    try {
+      const t0 = performance.now();
+      const { nodes, root, expanded } = useFsStore.getState();
+      const showHidden = useUiStore.getState().hiddenVisible;
+      console.log('[SceneController.#rebuild] start; nodes=', nodes.size, 'root=', root);
+      if (!root) { this.nodes.clear(); return; }
 
-    const visible: FsNode[] = [];
-    const isVisible = (n: FsNode): boolean => {
-      if (n.path === root) return true;
-      const parent = parentOf(n.path);
-      if (!nodes.has(parent)) return false;
-      return parent === root || expanded.has(parent);
-    };
-    for (const n of nodes.values()) {
-      if (n.isHidden && !showHidden) continue;
-      if (isVisible(n)) visible.push(n);
-    }
-
-    // group files per parent for fallback decision
-    const filesPerParent = new Map<string, number>();
-    for (const n of visible) {
-      if (n.kind !== 'file') continue;
-      const p = parentOf(n.path);
-      filesPerParent.set(p, (filesPerParent.get(p) ?? 0) + 1);
-    }
-
-    const positions = this.layout.computeFor(visible, root);
-
-    // diff: remove disappeared
-    const visiblePaths = new Set(visible.map(v => v.path));
-    for (const m of this.nodes.allMeshes()) {
-      const p = m.userData.path as string;
-      if (!visiblePaths.has(p)) this.nodes.remove(p);
-    }
-    // upsert
-    for (const n of visible) {
-      const pos = positions.get(n.path);
-      if (!pos) continue;
-      if (n.kind === 'dir' || n.kind === 'locked') {
-        this.nodes.upsertPedestal(n, pos);
-      } else {
+      const visible: FsNode[] = [];
+      const isVisible = (n: FsNode): boolean => {
+        if (n.path === root) return true;
         const parent = parentOf(n.path);
-        if ((filesPerParent.get(parent) ?? 0) > GRID_FALLBACK_THRESHOLD) {
-          // skip individual blocks — could draw an aggregate badge in v2
-          continue;
-        }
-        this.nodes.upsertFileBlock(n, pos);
+        if (!nodes.has(parent)) return false;
+        return parent === root || expanded.has(parent);
+      };
+      for (const n of nodes.values()) {
+        if (n.isHidden && !showHidden) continue;
+        if (isVisible(n)) visible.push(n);
       }
+      console.log('[SceneController.#rebuild] visible=', visible.length);
+
+      const filesPerParent = new Map<string, number>();
+      for (const n of visible) {
+        if (n.kind !== 'file') continue;
+        const p = parentOf(n.path);
+        filesPerParent.set(p, (filesPerParent.get(p) ?? 0) + 1);
+      }
+
+      console.log('[SceneController.#rebuild] computing layout');
+      const positions = this.layout.computeFor(visible, root);
+      console.log('[SceneController.#rebuild] layout done; positions=', positions.size);
+
+      const visiblePaths = new Set(visible.map(v => v.path));
+      for (const m of this.nodes.allMeshes()) {
+        const p = m.userData.path as string;
+        if (!visiblePaths.has(p)) this.nodes.remove(p);
+      }
+      let upserted = 0;
+      for (const n of visible) {
+        const pos = positions.get(n.path);
+        if (!pos) continue;
+        if (n.kind === 'dir' || n.kind === 'locked') {
+          this.nodes.upsertPedestal(n, pos);
+          upserted++;
+        } else {
+          const parent = parentOf(n.path);
+          if ((filesPerParent.get(parent) ?? 0) > GRID_FALLBACK_THRESHOLD) continue;
+          this.nodes.upsertFileBlock(n, pos);
+          upserted++;
+        }
+      }
+
+      // Derive parent->child connector lines, pedestal-to-pedestal only.
+      const pairs: { from: THREE.Vector3; to: THREE.Vector3 }[] = [];
+      for (const n of visible) {
+        if (n.path === root) continue;
+        if (n.kind !== 'dir' && n.kind !== 'locked') continue;
+        const parent = parentOf(n.path);
+        const pParent = positions.get(parent);
+        const pChild = positions.get(n.path);
+        if (!pParent || !pChild) continue;
+        pairs.push({
+          from: new THREE.Vector3(pParent.x, pParent.y + 0.5, pParent.z),
+          to: new THREE.Vector3(pChild.x, pChild.y + 0.5, pChild.z),
+        });
+      }
+      this.edges.setEdges(pairs);
+
+      console.log('[SceneController.#rebuild] done in', Math.round(performance.now() - t0), 'ms; upserted=', upserted, 'edges=', pairs.length);
+    } catch (e) {
+      console.error('[SceneController.#rebuild] threw', e);
+      throw e;
     }
   }
 
