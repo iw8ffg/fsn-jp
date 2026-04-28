@@ -1,12 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { SceneRoot } from './SceneRoot';
+import { SceneController } from './SceneController';
 
-export function SceneCanvas({ onReady }: { onReady?: (s: SceneRoot) => void }) {
+export function SceneCanvas({ onReady }: { onReady?: (s: SceneRoot) => void } = {}) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current!;
     const scene = new SceneRoot(canvas);
+    const controller = new SceneController(scene, canvas);
     onReady?.(scene);
 
     const ro = new ResizeObserver(() => {
@@ -16,7 +18,11 @@ export function SceneCanvas({ onReady }: { onReady?: (s: SceneRoot) => void }) {
     ro.observe(canvas);
     scene.start();
 
-    return () => { ro.disconnect(); scene.dispose(); };
+    return () => {
+      ro.disconnect();
+      controller.dispose();
+      scene.dispose();
+    };
   }, []);
 
   return <canvas ref={ref} style={{
