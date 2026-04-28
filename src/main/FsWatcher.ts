@@ -31,8 +31,18 @@ export class FsWatcher {
     const root = normalizePath(rootPath);
     this.#watcher = chokidar.watch(root, {
       ignoreInitial: true,
-      depth: 2, // only watch first 2 levels — matches lazy expansion model
+      // depth=1 keeps watcher cost bounded on drive roots like C:/ where
+      // depth=2 would register fs.watch handles on tens of thousands of
+      // subdirs and can hang or OOM the main process on Windows.
+      depth: 1,
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
+      // Don't crash main if a watched path becomes inaccessible mid-flight.
+      ignorePermissionErrors: true,
+    });
+    this.#watcher.on('error', () => {
+      // Swallow watcher errors — they would otherwise propagate as unhandled
+      // 'error' events on the EventEmitter and crash the main process. The
+      // logger picks up uncaughtException at the process level if needed.
     });
 
     this.#watcher.on('add', (p) => {

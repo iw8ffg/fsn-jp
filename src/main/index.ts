@@ -1,5 +1,13 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'node:path';
+// Handle Squirrel install/uninstall/update events. Squirrel relaunches the
+// app with flags like --squirrel-install, --squirrel-firstrun, etc; without
+// this helper the user sees the app flicker open multiple times after install.
+// The require returns true if it handled an event and the app should quit.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+if (require('electron-squirrel-startup')) {
+  app.quit();
+}
 import { FsService } from './FsService';
 import { FsWatcher } from './FsWatcher';
 import { SearchService } from './SearchService';
