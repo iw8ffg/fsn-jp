@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { SceneCanvas } from './scene/SceneCanvas';
 import { DrivePicker } from './ui/DrivePicker';
 import { Toolbar } from './ui/Toolbar';
+import { HUDOverlay } from './ui/HUDOverlay';
 import { fsn, unwrap } from './ipc/client';
 import { useFsStore } from './state/fsStore';
 import { wireFsEvents } from './ipc/wireFsEvents';
@@ -24,6 +25,7 @@ function App() {
         setPicked(true);
       }} />}
       {picked && <Toolbar />}
+      {picked && <HUDOverlay />}
     </div>
   );
 }
