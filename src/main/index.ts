@@ -5,6 +5,15 @@ import { FsWatcher } from './FsWatcher';
 import { SearchService } from './SearchService';
 import { Persistence } from './Persistence';
 import { registerIpc } from './IpcRouter';
+import { Logger } from './Logger';
+
+const logger = new Logger();
+process.on('uncaughtException', (err) => {
+  logger.error('main:uncaughtException', err).catch(() => {});
+});
+process.on('unhandledRejection', (err) => {
+  logger.error('main:unhandledRejection', err).catch(() => {});
+});
 
 // Forge's plugin-vite injects MAIN_WINDOW_VITE_DEV_SERVER_URL via Vite `define`
 // when `vite.main.config.ts` calls `getBuildDefine`. The constant is replaced
