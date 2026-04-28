@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useUiStore } from '@renderer/state/uiStore';
+import { useFsStore } from '@renderer/state/fsStore';
 import { fsn, unwrap } from '@renderer/ipc/client';
-import { Backdrop } from './NewFolderDialog';
+import { parentOf } from '@renderer/util/paths';
+import { Backdrop } from './Backdrop';
 
 export function RenameDialog() {
   const modal = useUiStore(s => s.modal);
@@ -11,7 +13,17 @@ export function RenameDialog() {
 
   const submit = async () => {
     try {
-      await unwrap(fsn.rename(modal.targetPath, name.trim()));
+      const newName = name.trim();
+      const returned = await unwrap(fsn.rename(modal.targetPath, newName));
+      const parent = parentOf(modal.targetPath);
+      const newPath = returned ?? (parent.endsWith('/') ? parent + newName : parent + '/' + newName);
+      const fs = useFsStore.getState();
+      const oldNode = fs.nodes.get(modal.targetPath);
+      if (oldNode) {
+        fs.removeNode(modal.targetPath);
+        fs.upsertNodes([{ ...oldNode, path: newPath, name: newName, parentPath: oldNode.parentPath }]);
+      }
+      useUiStore.getState().pushToast('info', 'Renamed');
       close();
     } catch (err) {
       useUiStore.getState().pushToast('error', `rename failed: ${(err as Error).message}`);
