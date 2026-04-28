@@ -1,13 +1,41 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useUiStore } from '@renderer/state/uiStore';
 
 export function Toasts() {
   const toasts = useUiStore(s => s.toasts);
   const dismiss = useUiStore(s => s.dismissToast);
+  const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   useEffect(() => {
-    const timers = toasts.map(t => setTimeout(() => dismiss(t.id), 3500));
-    return () => { timers.forEach(clearTimeout); };
+    const live = new Set(toasts.map(t => t.id));
+    // Schedule timers only for newly-arrived toasts so dismissals are not
+    // reset every time `toasts` changes.
+    for (const t of toasts) {
+      if (!timers.current.has(t.id)) {
+        const handle = setTimeout(() => {
+          timers.current.delete(t.id);
+          dismiss(t.id);
+        }, 3500);
+        timers.current.set(t.id, handle);
+      }
+    }
+    // Clean up timers for toasts that have been removed externally.
+    for (const [id, handle] of timers.current) {
+      if (!live.has(id)) {
+        clearTimeout(handle);
+        timers.current.delete(id);
+      }
+    }
   }, [toasts, dismiss]);
+
+  // Clear all timers on unmount.
+  useEffect(() => {
+    const map = timers.current;
+    return () => {
+      for (const handle of map.values()) clearTimeout(handle);
+      map.clear();
+    };
+  }, []);
 
   return (
     <div style={{
