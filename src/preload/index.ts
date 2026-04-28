@@ -1,9 +1,31 @@
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
+import { IPC } from '../shared/ipc';
+import type { FsnApi } from '../shared/api';
+import type { FsEvent, SearchHit } from '../shared/types';
 
-// NOTE: This is a STUB. The full FsnApi surface is wired in Plan Task 11.
-// `window.fsn` is typed globally as FsnApi via src/shared/api.ts, but the
-// methods declared there will throw "is not a function" in the renderer
-// until Task 11 lands. Don't call them from renderer code yet.
-contextBridge.exposeInMainWorld('fsn', {
-  ping: () => 'pong',
-});
+const api: FsnApi = {
+  listDrives: () => ipcRenderer.invoke(IPC.listDrives),
+  listDir:    (p, depth) => ipcRenderer.invoke(IPC.listDir, p, depth),
+  stat:       (p) => ipcRenderer.invoke(IPC.stat, p),
+  move:       (s, d) => ipcRenderer.invoke(IPC.move, s, d),
+  copy:       (s, d) => ipcRenderer.invoke(IPC.copy, s, d),
+  rename:     (p, name) => ipcRenderer.invoke(IPC.rename, p, name),
+  trash:      (p) => ipcRenderer.invoke(IPC.trash, p),
+  mkdir:      (parent, name) => ipcRenderer.invoke(IPC.mkdir, parent, name),
+  search:     (root, q, id) => ipcRenderer.invoke(IPC.search, root, q, id),
+  searchCancel: (id) => ipcRenderer.invoke(IPC.searchCancel, id),
+  watchRoot:  (p) => ipcRenderer.invoke(IPC.watchRoot, p),
+
+  onSearchResult(cb: (id: string, hits: SearchHit[]) => void) {
+    const handler = (_: unknown, id: string, hits: SearchHit[]) => cb(id, hits);
+    ipcRenderer.on(IPC.searchResult, handler);
+    return () => ipcRenderer.removeListener(IPC.searchResult, handler);
+  },
+  onFsEvent(cb: (event: FsEvent) => void) {
+    const handler = (_: unknown, event: FsEvent) => cb(event);
+    ipcRenderer.on(IPC.fsEvent, handler);
+    return () => ipcRenderer.removeListener(IPC.fsEvent, handler);
+  },
+};
+
+contextBridge.exposeInMainWorld('fsn', api);
