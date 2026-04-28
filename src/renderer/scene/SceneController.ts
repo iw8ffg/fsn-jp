@@ -7,6 +7,7 @@ import { OrbitCameraController } from './OrbitCameraController';
 import { HoverPicker } from './HoverPicker';
 import { ClickHandler } from './ClickHandler';
 import { DragController } from './DragController';
+import { LabelRenderer } from './LabelRenderer';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import { useUiStore } from '@renderer/state/uiStore';
@@ -17,6 +18,7 @@ const GRID_FALLBACK_THRESHOLD = 200;
 
 export class SceneController {
   readonly nodes: NodeRenderer;
+  readonly labels: LabelRenderer;
   readonly edges: EdgeRenderer;
   readonly camera: OrbitCameraController;
   readonly layout = new LayoutEngine();
@@ -39,6 +41,8 @@ export class SceneController {
   constructor(private root: SceneRoot, dom: HTMLElement) {
     this.nodes = new NodeRenderer();
     this.root.scene.add(this.nodes.group);
+    this.labels = new LabelRenderer();
+    this.root.scene.add(this.labels.group);
     this.edges = new EdgeRenderer();
     this.root.scene.add(this.edges.object);
     this.camera = new OrbitCameraController(root.camera, dom);
@@ -78,6 +82,8 @@ export class SceneController {
     this.camera.dispose();
     this.root.scene.remove(this.nodes.group);
     this.nodes.dispose();
+    this.root.scene.remove(this.labels.group);
+    this.labels.dispose();
     this.root.scene.remove(this.edges.object);
     this.edges.dispose();
   }
@@ -154,12 +160,17 @@ export class SceneController {
         const p = m.userData.path as string;
         if (!visiblePaths.has(p)) this.nodes.remove(p);
       }
+      // Mirror removal for labels (directories only, but cheap to scan all tracked).
+      for (const p of this.labels.paths()) {
+        if (!visiblePaths.has(p)) this.labels.remove(p);
+      }
       let upserted = 0;
       for (const n of visible) {
         const pos = positions.get(n.path);
         if (!pos) continue;
         if (n.kind === 'dir' || n.kind === 'locked') {
           this.nodes.upsertPedestal(n, pos);
+          this.labels.upsertLabel(n.path, n.name, pos);
           upserted++;
         } else {
           const parent = parentOf(n.path);
