@@ -4,6 +4,7 @@ import { BrowserWindow } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { FsEvent, FsNode } from '@shared/types';
 import { normalizePath } from './util/path';
+import { isHiddenName } from './util/hidden';
 
 function parentOf(np: string): string {
   const idx = np.lastIndexOf('/');
@@ -63,7 +64,7 @@ export class FsWatcher {
           kind: 'file',
           size: Number(stat.size),
           mtimeMs: stat.mtimeMs,
-          isHidden: false,
+          isHidden: isHiddenName(np.split('/').pop() ?? ''),
           childrenLoaded: false,
         };
         this.#enqueue({ type: 'change', node });
@@ -98,7 +99,7 @@ export class FsWatcher {
         kind,
         size: kind === 'dir' ? 0 : Number(stat.size),
         mtimeMs: stat.mtimeMs,
-        isHidden: false,
+        isHidden: isHiddenName(p.split('/').pop() ?? ''),
         childrenLoaded: false,
       };
       this.#enqueue({ type: 'add', node });

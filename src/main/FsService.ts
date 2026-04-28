@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { shell } from 'electron';
 import { normalizePath, joinPath } from './util/path';
+import { isHiddenName } from './util/hidden';
 import type { DriveInfo, FsNode } from '@shared/types';
 
 export class FsService {
@@ -52,7 +53,7 @@ export class FsService {
         kind: isDir ? 'dir' : 'file',
         size: isDir ? 0 : Number(stat.size),
         mtimeMs: stat.mtimeMs,
-        isHidden: ent.name.startsWith('.') || (await this.#isHiddenWin(full)),
+        isHidden: isHiddenName(ent.name),
         childrenLoaded: false,
       };
       out.push(node);
@@ -112,18 +113,4 @@ export class FsService {
     }
   }
 
-  async #isHiddenWin(p: string): Promise<boolean> {
-    const base = p.split('/').pop() ?? '';
-    const HARDCODED = new Set([
-      'System Volume Information',
-      '$Recycle.Bin',
-      'pagefile.sys',
-      'hiberfil.sys',
-      'swapfile.sys',
-      'DumpStack.log',
-      'DumpStack.log.tmp',
-    ]);
-    if (HARDCODED.has(base)) return true;
-    return base.startsWith('.');
-  }
 }
