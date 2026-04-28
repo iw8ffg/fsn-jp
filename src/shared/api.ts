@@ -1,6 +1,8 @@
 import type { DriveInfo, FsEvent, FsNode, SearchHit } from './types';
 import type { IpcResult } from './ipc';
 
+export interface AppConfig { lastRoot?: string; hiddenVisible: boolean; }
+
 export interface FsnApi {
   listDrives():                                   Promise<IpcResult<DriveInfo[]>>;
   listDir(path: string, depth: number):           Promise<IpcResult<FsNode[]>>;
@@ -13,6 +15,8 @@ export interface FsnApi {
   search(root: string, query: string, id: string): Promise<IpcResult<void>>;
   searchCancel(id: string):                       Promise<IpcResult<void>>;
   watchRoot(path: string):                        Promise<IpcResult<void>>;
+  loadConfig():                                   Promise<IpcResult<AppConfig>>;
+  saveConfig(cfg: AppConfig):                     Promise<IpcResult<void>>;
 
   onSearchResult(cb: (id: string, hits: SearchHit[]) => void): () => void;
   onFsEvent(cb: (event: FsEvent) => void):                     () => void;

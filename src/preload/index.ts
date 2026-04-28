@@ -15,6 +15,8 @@ const api: FsnApi = {
   search:     (root, q, id) => ipcRenderer.invoke(IPC.search, root, q, id),
   searchCancel: (id) => ipcRenderer.invoke(IPC.searchCancel, id),
   watchRoot:  (p) => ipcRenderer.invoke(IPC.watchRoot, p),
+  loadConfig: () => ipcRenderer.invoke(IPC.loadConfig),
+  saveConfig: (cfg) => ipcRenderer.invoke(IPC.saveConfig, cfg),
 
   onSearchResult(cb: (id: string, hits: SearchHit[]) => void) {
     const handler = (_: unknown, id: string, hits: SearchHit[]) => cb(id, hits);

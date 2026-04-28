@@ -1,8 +1,10 @@
 import { ipcMain, IpcMainInvokeEvent, BrowserWindow } from 'electron';
 import { IPC, IpcResult } from '@shared/ipc';
+import type { AppConfig } from '@shared/api';
 import { FsService } from './FsService';
 import { FsWatcher } from './FsWatcher';
 import { SearchService } from './SearchService';
+import { Persistence } from './Persistence';
 
 function ok<T>(data: T): IpcResult<T>      { return { ok: true, data }; }
 function fail(err: unknown): IpcResult<never> {
@@ -20,6 +22,7 @@ export function registerIpc(
   watcher: FsWatcher,
   search: SearchService,
   win: BrowserWindow,
+  persistence: Persistence,
 ): void {
   ipcMain.handle(IPC.listDrives, async () => safe(() => fsSvc.listDrives()));
   ipcMain.handle(IPC.listDir,    async (_e: IpcMainInvokeEvent, p: string, depth: number) => safe(() => fsSvc.listDir(p, depth)));
@@ -37,4 +40,6 @@ export function registerIpc(
     }),
   );
   ipcMain.handle(IPC.searchCancel, async (_e, id: string) => safe(async () => { search.cancel(id); }));
+  ipcMain.handle(IPC.loadConfig, async () => safe(() => persistence.load()));
+  ipcMain.handle(IPC.saveConfig, async (_e, cfg: AppConfig) => safe(() => persistence.save(cfg)));
 }

@@ -12,6 +12,8 @@ export const IPC = {
   searchResult: 'fs:searchResult',
   fsEvent:      'fs:event',
   watchRoot:    'fs:watchRoot',
+  loadConfig:   'cfg:load',
+  saveConfig:   'cfg:save',
 } as const;
 
 export type IpcResult<T> =

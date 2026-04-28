@@ -49,20 +49,67 @@ function useGlobalShortcuts() {
   }, []);
 }
 
+async function activateRoot(root: string): Promise<void> {
+  const children = await unwrap(fsn.listDir(root, 2));
+  useFsStore.getState().upsertNodes([
+    { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
+    ...children,
+  ]);
+  await fsn.watchRoot(root);
+  useFsStore.getState().setRoot(root);
+}
+
 function App() {
   const [picked, setPicked] = useState(false);
+  const [bootDone, setBootDone] = useState(false);
   useGlobalShortcuts();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cfg = await unwrap(fsn.loadConfig());
+        if (cancelled) return;
+        // Apply hiddenVisible without firing a save (subscription not yet attached).
+        if (cfg.hiddenVisible !== useUiStore.getState().hiddenVisible) {
+          useUiStore.setState({ hiddenVisible: cfg.hiddenVisible });
+        }
+        if (cfg.lastRoot) {
+          try {
+            await activateRoot(cfg.lastRoot);
+            if (!cancelled) setPicked(true);
+          } catch {
+            // Saved root no longer accessible; fall through to DrivePicker.
+          }
+        }
+      } catch {
+        // Config load failed; proceed with defaults.
+      } finally {
+        if (!cancelled) setBootDone(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Persist hiddenVisible changes only after initial config has been applied.
+  useEffect(() => {
+    if (!bootDone) return;
+    const unsub = useUiStore.subscribe(
+      (s) => s.hiddenVisible,
+      (hiddenVisible) => {
+        const lastRoot = useFsStore.getState().root ?? undefined;
+        void fsn.saveConfig({ lastRoot, hiddenVisible });
+      },
+    );
+    return unsub;
+  }, [bootDone]);
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       <SceneCanvas />
-      {!picked && <DrivePicker onPicked={async (root) => {
-        const children = await unwrap(fsn.listDir(root, 2));
-        useFsStore.getState().upsertNodes([
-          { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
-          ...children,
-        ]);
-        await fsn.watchRoot(root);
+      {bootDone && !picked && <DrivePicker onPicked={async (root) => {
+        await activateRoot(root);
+        await fsn.saveConfig({ lastRoot: root, hiddenVisible: useUiStore.getState().hiddenVisible });
         setPicked(true);
       }} />}
       {picked && <Toolbar />}

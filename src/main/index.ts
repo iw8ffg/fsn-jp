@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { FsService } from './FsService';
 import { FsWatcher } from './FsWatcher';
 import { SearchService } from './SearchService';
+import { Persistence } from './Persistence';
 import { registerIpc } from './IpcRouter';
 
 // Forge's plugin-vite injects MAIN_WINDOW_VITE_DEV_SERVER_URL via Vite `define`
@@ -45,7 +46,8 @@ app.whenReady().then(async () => {
   const win = await createWindow();
   const watcher = new FsWatcher(win);
   const search = new SearchService();
-  registerIpc(fsSvc, watcher, search, win);
+  const persistence = new Persistence();
+  registerIpc(fsSvc, watcher, search, win, persistence);
   let isQuitting = false;
   app.on('before-quit', async (event) => {
     if (isQuitting) return;
