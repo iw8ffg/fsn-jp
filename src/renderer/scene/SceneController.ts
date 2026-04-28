@@ -8,6 +8,7 @@ import { ClickHandler } from './ClickHandler';
 import { DragController } from './DragController';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
+import { useUiStore } from '@renderer/state/uiStore';
 import { parentOf } from '@renderer/util/paths';
 import type { FsNode } from '@shared/types';
 
@@ -23,6 +24,7 @@ export class SceneController {
   #unsubFs: () => void;
   #unsubCam: () => void;
   #unsubHover: () => void;
+  #unsubUi: () => void;
   // Track per-mesh original (shared) material so we can restore it on hover-out.
   // NodeRenderer caches materials by category, so mutating emissiveIntensity on
   // the shared material would highlight every mesh of that category. Instead,
@@ -51,6 +53,8 @@ export class SceneController {
     );
     this.#unsubCam = useCameraStore.subscribe(() => this.#applyFocus());
     this.#unsubHover = useFsStore.subscribe((s) => s.hoverPath, () => this.#applyHover());
+    // Selector form: only fires when hiddenVisible changes, not on toast/modal churn.
+    this.#unsubUi = useUiStore.subscribe((s) => s.hiddenVisible, () => this.#rebuild());
 
     this.root.setOnTick((dt) => this.camera.update(dt));
 
@@ -62,6 +66,7 @@ export class SceneController {
     this.#unsubFs();
     this.#unsubCam();
     this.#unsubHover();
+    this.#unsubUi();
     this.#restoreHover();
     this.drag.dispose();
     this.click.dispose();
@@ -108,6 +113,7 @@ export class SceneController {
 
   #rebuild(): void {
     const { nodes, root, expanded } = useFsStore.getState();
+    const showHidden = useUiStore.getState().hiddenVisible;
     if (!root) { this.nodes.clear(); return; }
 
     const visible: FsNode[] = [];
@@ -117,7 +123,10 @@ export class SceneController {
       if (!nodes.has(parent)) return false;
       return parent === root || expanded.has(parent);
     };
-    for (const n of nodes.values()) if (isVisible(n)) visible.push(n);
+    for (const n of nodes.values()) {
+      if (n.isHidden && !showHidden) continue;
+      if (isVisible(n)) visible.push(n);
+    }
 
     // group files per parent for fallback decision
     const filesPerParent = new Map<string, number>();

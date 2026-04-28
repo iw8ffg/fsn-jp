@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 
 interface Toast { id: string; level: 'info'|'error'; text: string; }
 
@@ -23,7 +24,7 @@ interface UiState {
   closeModal: () => void;
 }
 
-export const useUiStore = create<UiState>((set) => ({
+export const useUiStore = create<UiState>()(subscribeWithSelector((set) => ({
   searchQuery: '',
   searchActiveId: null,
   hiddenVisible: false,
@@ -39,4 +40,4 @@ export const useUiStore = create<UiState>((set) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter(t => t.id !== id) })),
   openModal: (m) => set({ modal: m }),
   closeModal: () => set({ modal: null }),
-}));
+})));
