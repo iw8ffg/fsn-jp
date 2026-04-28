@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 import type { FsNode } from '@shared/types';
 
 interface FsState {
@@ -19,7 +20,7 @@ interface FsState {
   reset: () => void;
 }
 
-export const useFsStore = create<FsState>((set, get) => ({
+export const useFsStore = create<FsState>()(subscribeWithSelector((set, get) => ({
   root: null,
   nodes: new Map(),
   expanded: new Set(),
@@ -62,4 +63,4 @@ export const useFsStore = create<FsState>((set, get) => ({
     root: null, nodes: new Map(), expanded: new Set(),
     hoverPath: null, selectedPath: null,
   }),
-}));
+})));

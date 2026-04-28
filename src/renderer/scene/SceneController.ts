@@ -8,6 +8,7 @@ import { ClickHandler } from './ClickHandler';
 import { DragController } from './DragController';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
+import { parentOf } from '@renderer/util/paths';
 import type { FsNode } from '@shared/types';
 
 const GRID_FALLBACK_THRESHOLD = 200;
@@ -29,6 +30,7 @@ export class SceneController {
   // and assign it to that mesh only; on hover-leave we restore the original
   // shared material and dispose the clone.
   #hoverOriginalMat: { mesh: THREE.Mesh; mat: THREE.Material | THREE.Material[] } | null = null;
+  #lastFocus: string | null = null;
 
   constructor(private root: SceneRoot, dom: HTMLElement) {
     this.nodes = new NodeRenderer();
@@ -38,9 +40,17 @@ export class SceneController {
     this.click = new ClickHandler(dom, root.camera, () => this.nodes.allMeshes());
     this.drag = new DragController(dom, root.camera, root.scene, () => this.nodes.allMeshes());
 
-    this.#unsubFs = useFsStore.subscribe(() => this.#rebuild());
+    // Selective subscription: only rebuild when the structural fields change.
+    // Without this, every hover update (which is high-frequency) re-runs
+    // the full #rebuild() because Zustand's default subscribe fires on any
+    // state change.
+    this.#unsubFs = useFsStore.subscribe(
+      (s) => ({ nodes: s.nodes, root: s.root, expanded: s.expanded }),
+      () => this.#rebuild(),
+      { equalityFn: (a, b) => a.nodes === b.nodes && a.root === b.root && a.expanded === b.expanded },
+    );
     this.#unsubCam = useCameraStore.subscribe(() => this.#applyFocus());
-    this.#unsubHover = useFsStore.subscribe(() => this.#applyHover());
+    this.#unsubHover = useFsStore.subscribe((s) => s.hoverPath, () => this.#applyHover());
 
     this.root.setOnTick((dt) => this.camera.update(dt));
 
@@ -145,14 +155,10 @@ export class SceneController {
   #applyFocus(): void {
     const focus = useCameraStore.getState().focusPath;
     if (!focus) return;
+    if (focus === this.#lastFocus) return;
     const mesh = this.nodes.meshAt(focus);
     if (!mesh) return;
+    this.#lastFocus = focus;
     this.camera.flyTo(mesh.position.clone(), { distance: 50, polar: Math.PI / 4 });
   }
-}
-
-function parentOf(p: string): string {
-  const i = p.lastIndexOf('/');
-  if (i <= 2) return p.slice(0, i + 1);
-  return p.slice(0, i);
 }
