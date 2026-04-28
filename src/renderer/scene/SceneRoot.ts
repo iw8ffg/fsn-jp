@@ -1,19 +1,31 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { createStarfield } from './Starfield.js';
 
 export class SceneRoot {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly renderer: THREE.WebGLRenderer;
+  readonly composer: EffectComposer;
+  readonly bloom: UnrealBloomPass;
   #raf = 0;
   #disposed = false;
   #onTick: ((dt: number) => void) | null = null;
   #last = performance.now();
   #grid: THREE.GridHelper;
+  #stars: THREE.Points;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x000000);
+    // ACES filmic tone mapping makes the bloom on emissive cyan feel film-like
+    // rather than flat-additive; exposure 1.0 keeps current pedestal brightness.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
 
     // Exponential fog so distant pedestals fade smoothly to black.
     this.scene.fog = new THREE.FogExp2(0x000000, 0.012);
@@ -36,6 +48,18 @@ export class SceneRoot {
     gridMat.opacity = 0.55;
     gridMat.fog = true; // r0.165 LineBasicMaterial supports .fog
     this.scene.add(this.#grid);
+
+    // Starfield backdrop — static FSN-flavoured twinkle just inside far plane.
+    this.#stars = createStarfield();
+    this.scene.add(this.#stars);
+
+    // Postprocessing: Render -> UnrealBloom -> Output. Use 1x1 placeholder size
+    // since the canvas may not have layout yet; resize() will fix it.
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.9, 0.5, 0.15);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
   }
 
   setOnTick(cb: (dt: number) => void): void { this.#onTick = cb; }
@@ -47,7 +71,7 @@ export class SceneRoot {
       const dt = (now - this.#last) / 1000;
       this.#last = now;
       this.#onTick?.(dt);
-      this.renderer.render(this.scene, this.camera);
+      this.composer.render(dt);
       this.#raf = requestAnimationFrame(loop);
     };
     this.#raf = requestAnimationFrame(loop);
@@ -55,6 +79,8 @@ export class SceneRoot {
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
+    this.composer.setSize(width, height);
+    this.bloom.setSize(width, height);
     this.camera.aspect = width / Math.max(1, height);
     this.camera.updateProjectionMatrix();
   }
@@ -65,6 +91,11 @@ export class SceneRoot {
     this.scene.remove(this.#grid);
     this.#grid.geometry.dispose();
     (this.#grid.material as THREE.Material).dispose();
+    this.scene.remove(this.#stars);
+    this.#stars.geometry.dispose();
+    (this.#stars.material as THREE.Material).dispose();
+    this.bloom.dispose();
+    this.composer.dispose();
     this.renderer.dispose();
   }
 }
