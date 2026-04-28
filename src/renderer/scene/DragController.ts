@@ -9,7 +9,6 @@ export class DragController {
   #ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   #ghost: THREE.Mesh | null = null;
   #dragSrcPath: string | null = null;
-  #dragSrcMesh: THREE.Mesh | null = null;
   #onDown: (e: PointerEvent) => void;
   #onMove: (e: PointerEvent) => void;
   #onUp: (e: PointerEvent) => void;
@@ -37,7 +36,6 @@ export class DragController {
     this.dom.removeEventListener('pointerup', this.#onUp, { capture: true });
     this.#disposeGhost();
     this.#dragSrcPath = null;
-    this.#dragSrcMesh = null;
   }
 
   #disposeGhost(): void {
@@ -66,7 +64,6 @@ export class DragController {
     if (!obj) return;
     e.stopImmediatePropagation();
     this.#dragSrcPath = obj.userData.path as string;
-    this.#dragSrcMesh = obj as THREE.Mesh;
     const ghostGeom = new THREE.BoxGeometry(1.2, 1.2, 1.2);
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
     this.#ghost = new THREE.Mesh(ghostGeom, ghostMat);
@@ -92,7 +89,6 @@ export class DragController {
     this.#disposeGhost();
     const src = this.#dragSrcPath;
     this.#dragSrcPath = null;
-    this.#dragSrcMesh = null;
 
     // Browsers synthesize a `click` event on pointerup even when we treated
     // the gesture as a drag. Suppress that one synthetic click so it doesn't
