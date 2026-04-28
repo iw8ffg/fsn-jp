@@ -18,7 +18,7 @@ export function HUDOverlay() {
       position: 'absolute', bottom: 36, left: 12, padding: '10px 14px',
       background: 'rgba(10,14,20,0.85)', color: '#cfd8dc',
       border: '1px solid #2a3a55', borderRadius: 6, fontFamily: 'monospace',
-      pointerEvents: 'none', minWidth: 220, transition: 'opacity 150ms',
+      pointerEvents: 'none', minWidth: 220,
     }}>
       <div style={{ color: '#7da4d8' }}>{node.kind.toUpperCase()}</div>
       <div style={{ fontSize: 14, marginTop: 4 }}>{node.name}</div>
