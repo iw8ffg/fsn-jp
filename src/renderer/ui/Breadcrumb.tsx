@@ -1,6 +1,7 @@
 import React from 'react';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import { useFsStore } from '@renderer/state/fsStore';
+import { joinSegments } from '@renderer/util/paths';
 
 export function Breadcrumb() {
   const focus = useCameraStore(s => s.focusPath);
@@ -11,10 +12,7 @@ export function Breadcrumb() {
   return (
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontFamily: 'monospace' }}>
       {segments.map((seg, i) => {
-        const slice = segments.slice(0, i + 1);
-        const full = slice[0]!.endsWith(':')
-          ? slice[0] + '/' + slice.slice(1).join('/')
-          : '/' + slice.join('/');
+        const full = joinSegments(segments.slice(0, i + 1));
         return (
           <span key={i}>
             <button style={btn} onClick={() => useCameraStore.getState().setFocus(full)}>{seg}</button>
