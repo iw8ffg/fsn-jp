@@ -94,6 +94,19 @@ export class DragController {
     this.#dragSrcPath = null;
     this.#dragSrcMesh = null;
 
+    // Browsers synthesize a `click` event on pointerup even when we treated
+    // the gesture as a drag. Suppress that one synthetic click so it doesn't
+    // re-trigger ClickHandler (which would expand or focus the drop target).
+    // Register a one-shot capture-phase swallow for the immediately-following
+    // click, then deregister on next tick if nothing fires.
+    const swallow = (ev: Event) => {
+      ev.stopImmediatePropagation();
+      ev.preventDefault();
+      this.dom.removeEventListener('click', swallow, { capture: true });
+    };
+    this.dom.addEventListener('click', swallow, { capture: true });
+    setTimeout(() => this.dom.removeEventListener('click', swallow, { capture: true }), 0);
+
     if (!target) return;
     const dstParent = target.userData.path as string;
     const fileName = src.split('/').pop()!;
