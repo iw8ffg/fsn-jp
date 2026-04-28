@@ -41,6 +41,7 @@ export class FsService {
       const isDir = ent.isDirectory();
       const node: FsNode = {
         path: full,
+        parentPath: dirPath,
         name: ent.name,
         kind: isDir ? 'dir' : 'file',
         size: isDir ? 0 : Number(stat.size),

@@ -2,6 +2,7 @@ export type FsNodeKind = 'dir' | 'file' | 'locked';
 
 export interface FsNode {
   path: string;          // absolute, normalized to forward slashes
+  parentPath: string;    // absolute path of containing dir; empty string for drive root like "C:/"
   name: string;
   kind: FsNodeKind;
   size: number;          // bytes; 0 for dirs

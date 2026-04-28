@@ -28,6 +28,8 @@ describe('FsService.listDir', () => {
     const sub = nodes.find(n => n.name === 'sub')!;
     expect(sub.kind).toBe('dir');
     expect(sub.childrenLoaded).toBe(false);
+    const aTxt = nodes.find(n => n.name === 'a.txt')!;
+    expect(aTxt.parentPath).toBe(sub.parentPath); // both immediate children share parent
   });
 
   it('lists two levels with depth=2', async () => {
@@ -41,6 +43,8 @@ describe('FsService.listDir', () => {
     // deep is included but its own children are not
     const deep = subChildren.find(n => n.name === 'deep')!;
     expect(deep.childrenLoaded).toBe(false);
+    const bTxt = subChildren.find(n => n.name === 'b.txt')!;
+    expect(bTxt.parentPath).toBe(sub.path);
   });
 
   it('marks unreadable directories as locked', async () => {
