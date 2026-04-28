@@ -15,4 +15,14 @@ describe('uiStore', () => {
     useUiStore.getState().dismissToast(id);
     expect(useUiStore.getState().toasts.find(t => t.id === id)).toBeUndefined();
   });
+
+  it('opens and closes modal', () => {
+    expect(useUiStore.getState().modal).toBeNull();
+    useUiStore.getState().openModal({ kind: 'newFolder', parentPath: '/tmp' });
+    expect(useUiStore.getState().modal).toEqual({ kind: 'newFolder', parentPath: '/tmp' });
+    useUiStore.getState().openModal({ kind: 'rename', targetPath: '/tmp/a', currentName: 'a' });
+    expect(useUiStore.getState().modal).toEqual({ kind: 'rename', targetPath: '/tmp/a', currentName: 'a' });
+    useUiStore.getState().closeModal();
+    expect(useUiStore.getState().modal).toBeNull();
+  });
 });

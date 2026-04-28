@@ -1,17 +1,57 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SceneCanvas } from './scene/SceneCanvas';
 import { DrivePicker } from './ui/DrivePicker';
 import { Toolbar } from './ui/Toolbar';
 import { HUDOverlay } from './ui/HUDOverlay';
 import { StatusBar } from './ui/StatusBar';
+import { Toasts } from './ui/Toasts';
+import { NewFolderDialog } from './ui/NewFolderDialog';
+import { RenameDialog } from './ui/RenameDialog';
 import { fsn, unwrap } from './ipc/client';
 import { useFsStore } from './state/fsStore';
+import { useUiStore } from './state/uiStore';
 import { wireFsEvents } from './ipc/wireFsEvents';
 import { wireSearch } from './ipc/wireSearch';
 
+function useGlobalShortcuts() {
+  useEffect(() => {
+    const handler = async (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      const sel = useFsStore.getState().selectedPath;
+      if (!sel) return;
+
+      if (e.key === 'F2') {
+        const node = useFsStore.getState().nodes.get(sel);
+        if (node) useUiStore.getState().openModal({ kind: 'rename', targetPath: sel, currentName: node.name });
+      }
+      if (e.key === 'Delete') {
+        if (window.confirm(`Move "${sel}" to Trash?`)) {
+          try {
+            const { fsn, unwrap } = await import('./ipc/client');
+            await unwrap(fsn.trash(sel));
+            useFsStore.getState().removeNode(sel);
+          } catch (err) {
+            useUiStore.getState().pushToast('error', String(err));
+          }
+        }
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 'n') {
+        const node = useFsStore.getState().nodes.get(sel);
+        const parent = node?.kind === 'dir' ? sel : sel.split('/').slice(0, -1).join('/');
+        useUiStore.getState().openModal({ kind: 'newFolder', parentPath: parent });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+}
+
 function App() {
   const [picked, setPicked] = useState(false);
+  useGlobalShortcuts();
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
@@ -28,6 +68,9 @@ function App() {
       {picked && <Toolbar />}
       {picked && <HUDOverlay />}
       {picked && <StatusBar />}
+      {picked && <Toasts />}
+      {picked && <NewFolderDialog />}
+      {picked && <RenameDialog />}
     </div>
   );
 }
