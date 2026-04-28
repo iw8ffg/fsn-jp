@@ -13,13 +13,23 @@ export class OrbitCameraController {
   #fly: { from: { target: THREE.Vector3; state: OrbitState }; to: { target: THREE.Vector3; state: OrbitState }; t: number; dur: number } | null = null;
   #pointerDown = false;
   #last = { x: 0, y: 0 };
+  #dom: HTMLElement;
 
   constructor(private camera: THREE.PerspectiveCamera, dom: HTMLElement) {
+    this.#dom = dom;
     dom.addEventListener('pointerdown',  this.#onDown);
     dom.addEventListener('pointermove',  this.#onMove);
     dom.addEventListener('pointerup',    this.#onUp);
     dom.addEventListener('pointerleave', this.#onUp);
     dom.addEventListener('wheel',        this.#onWheel, { passive: false });
+  }
+
+  dispose(): void {
+    this.#dom.removeEventListener('pointerdown',  this.#onDown);
+    this.#dom.removeEventListener('pointermove',  this.#onMove);
+    this.#dom.removeEventListener('pointerup',    this.#onUp);
+    this.#dom.removeEventListener('pointerleave', this.#onUp);
+    this.#dom.removeEventListener('wheel',        this.#onWheel);
   }
 
   setTarget(t: THREE.Vector3, partial?: Partial<OrbitState>): void {
