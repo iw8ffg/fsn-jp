@@ -1,6 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import { IPC, IpcResult } from '@shared/ipc';
 import { FsService } from './FsService';
+import { FsWatcher } from './FsWatcher';
 
 function ok<T>(data: T): IpcResult<T>      { return { ok: true, data }; }
 function fail(err: unknown): IpcResult<never> {
@@ -13,7 +14,7 @@ async function safe<T>(fn: () => Promise<T>): Promise<IpcResult<T>> {
   catch (err) { return fail(err); }
 }
 
-export function registerIpc(fsSvc: FsService): void {
+export function registerIpc(fsSvc: FsService, watcher: FsWatcher): void {
   ipcMain.handle(IPC.listDrives, async () => safe(() => fsSvc.listDrives()));
   ipcMain.handle(IPC.listDir,    async (_e: IpcMainInvokeEvent, p: string, depth: number) => safe(() => fsSvc.listDir(p, depth)));
   ipcMain.handle(IPC.mkdir,      async (_e, parent: string, name: string) => safe(() => fsSvc.mkdir(parent, name)));
@@ -21,4 +22,5 @@ export function registerIpc(fsSvc: FsService): void {
   ipcMain.handle(IPC.move,       async (_e, s: string, d: string)         => safe(() => fsSvc.move(s, d)));
   ipcMain.handle(IPC.copy,       async (_e, s: string, d: string)         => safe(() => fsSvc.copy(s, d)));
   ipcMain.handle(IPC.trash,      async (_e, p: string)                    => safe(() => fsSvc.trash(p)));
+  ipcMain.handle(IPC.watchRoot,  async (_e, p: string)                    => safe(() => watcher.watch(p)));
 }

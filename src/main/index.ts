@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'node:path';
 import { FsService } from './FsService';
+import { FsWatcher } from './FsWatcher';
 import { registerIpc } from './IpcRouter';
 
 // Forge's plugin-vite injects MAIN_WINDOW_VITE_DEV_SERVER_URL via Vite `define`
@@ -11,7 +12,7 @@ import { registerIpc } from './IpcRouter';
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string | undefined;
 
-async function createWindow() {
+async function createWindow(): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -34,12 +35,18 @@ async function createWindow() {
     void MAIN_WINDOW_VITE_NAME;
     await win.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
+
+  return win;
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const fsSvc = new FsService();
-  registerIpc(fsSvc);
-  return createWindow();
+  const win = await createWindow();
+  const watcher = new FsWatcher(win);
+  registerIpc(fsSvc, watcher);
+  app.on('before-quit', () => {
+    void watcher.dispose();
+  });
 });
 
 app.on('window-all-closed', () => {
