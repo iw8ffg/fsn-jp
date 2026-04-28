@@ -52,12 +52,8 @@ export const useFsStore = create<FsState>((set, get) => ({
 
   childrenOf: (parent) => {
     const out: FsNode[] = [];
-    const prefix = parent.endsWith('/') ? parent : parent + '/';
     for (const n of get().nodes.values()) {
-      if (n.path.startsWith(prefix)) {
-        const rest = n.path.slice(prefix.length);
-        if (!rest.includes('/')) out.push(n);
-      }
+      if (n.parentPath === parent) out.push(n);
     }
     return out;
   },
