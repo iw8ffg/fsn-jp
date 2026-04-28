@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import * as path from 'node:path';
 import { FsService } from './FsService';
 import { FsWatcher } from './FsWatcher';
+import { SearchService } from './SearchService';
 import { registerIpc } from './IpcRouter';
 
 // Forge's plugin-vite injects MAIN_WINDOW_VITE_DEV_SERVER_URL via Vite `define`
@@ -43,7 +44,8 @@ app.whenReady().then(async () => {
   const fsSvc = new FsService();
   const win = await createWindow();
   const watcher = new FsWatcher(win);
-  registerIpc(fsSvc, watcher);
+  const search = new SearchService();
+  registerIpc(fsSvc, watcher, search, win);
   app.on('before-quit', () => {
     void watcher.dispose();
   });

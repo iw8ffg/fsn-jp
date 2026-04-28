@@ -1,7 +1,8 @@
-import { ipcMain, IpcMainInvokeEvent } from 'electron';
+import { ipcMain, IpcMainInvokeEvent, BrowserWindow } from 'electron';
 import { IPC, IpcResult } from '@shared/ipc';
 import { FsService } from './FsService';
 import { FsWatcher } from './FsWatcher';
+import { SearchService } from './SearchService';
 
 function ok<T>(data: T): IpcResult<T>      { return { ok: true, data }; }
 function fail(err: unknown): IpcResult<never> {
@@ -14,7 +15,12 @@ async function safe<T>(fn: () => Promise<T>): Promise<IpcResult<T>> {
   catch (err) { return fail(err); }
 }
 
-export function registerIpc(fsSvc: FsService, watcher: FsWatcher): void {
+export function registerIpc(
+  fsSvc: FsService,
+  watcher: FsWatcher,
+  search: SearchService,
+  win: BrowserWindow,
+): void {
   ipcMain.handle(IPC.listDrives, async () => safe(() => fsSvc.listDrives()));
   ipcMain.handle(IPC.listDir,    async (_e: IpcMainInvokeEvent, p: string, depth: number) => safe(() => fsSvc.listDir(p, depth)));
   ipcMain.handle(IPC.mkdir,      async (_e, parent: string, name: string) => safe(() => fsSvc.mkdir(parent, name)));
@@ -23,4 +29,12 @@ export function registerIpc(fsSvc: FsService, watcher: FsWatcher): void {
   ipcMain.handle(IPC.copy,       async (_e, s: string, d: string)         => safe(() => fsSvc.copy(s, d)));
   ipcMain.handle(IPC.trash,      async (_e, p: string)                    => safe(() => fsSvc.trash(p)));
   ipcMain.handle(IPC.watchRoot,  async (_e, p: string)                    => safe(() => watcher.watch(p)));
+  ipcMain.handle(IPC.search,     async (_e, root: string, query: string, id: string) =>
+    safe(async () => {
+      await search.search(root, query, id, (hits) => {
+        win.webContents.send(IPC.searchResult, id, hits);
+      });
+    }),
+  );
+  ipcMain.handle(IPC.searchCancel, async (_e, id: string) => safe(async () => { search.cancel(id); }));
 }
