@@ -46,8 +46,13 @@ app.whenReady().then(async () => {
   const watcher = new FsWatcher(win);
   const search = new SearchService();
   registerIpc(fsSvc, watcher, search, win);
-  app.on('before-quit', () => {
-    void watcher.dispose();
+  let isQuitting = false;
+  app.on('before-quit', async (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    isQuitting = true;
+    await watcher.dispose();
+    app.quit();
   });
 });
 
