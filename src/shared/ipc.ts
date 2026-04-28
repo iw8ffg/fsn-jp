@@ -14,6 +14,7 @@ export const IPC = {
   watchRoot:    'fs:watchRoot',
   loadConfig:   'cfg:load',
   saveConfig:   'cfg:save',
+  bootRoot:     'cfg:bootRoot',
 } as const;
 
 export type IpcResult<T> =

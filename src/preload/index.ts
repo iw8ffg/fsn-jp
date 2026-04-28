@@ -28,6 +28,11 @@ const api: FsnApi = {
     ipcRenderer.on(IPC.fsEvent, handler);
     return () => ipcRenderer.removeListener(IPC.fsEvent, handler);
   },
+  onBootRoot(cb: (root: string) => void) {
+    const handler = (_: unknown, root: string) => cb(root);
+    ipcRenderer.on(IPC.bootRoot, handler);
+    return () => ipcRenderer.removeListener(IPC.bootRoot, handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('fsn', api);

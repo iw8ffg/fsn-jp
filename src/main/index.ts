@@ -57,6 +57,25 @@ app.whenReady().then(async () => {
   const search = new SearchService();
   const persistence = new Persistence();
   registerIpc(fsSvc, watcher, search, win, persistence);
+
+  // Optional CLI override: `--root=<path>` skips the drive picker by
+  // signalling the renderer once it's ready.
+  const rootArg = process.argv.find((a) => a.startsWith('--root='))?.slice('--root='.length);
+  if (rootArg) {
+    // Send repeatedly to avoid a race: the renderer subscribes inside a React
+    // effect that mounts shortly after `did-finish-load`. Resending covers
+    // the window where the first message could be dispatched before the
+    // listener attaches. The renderer ignores all but the first delivery.
+    const fire = () => win.webContents.send('cfg:bootRoot', rootArg);
+    const scheduleAll = () => {
+      fire();
+      setTimeout(fire, 250);
+      setTimeout(fire, 1000);
+      setTimeout(fire, 2500);
+    };
+    scheduleAll();
+    win.webContents.on('did-finish-load', scheduleAll);
+  }
   let isQuitting = false;
   app.on('before-quit', async (event) => {
     if (isQuitting) return;

@@ -64,6 +64,24 @@ function App() {
   const [bootDone, setBootDone] = useState(false);
   useGlobalShortcuts();
 
+  // Listen for `--root=<path>` boot override from main. Subscribed early so
+  // the message isn't lost if the renderer mounts before main sends it.
+  useEffect(() => {
+    let handled = false;
+    const unsub = fsn.onBootRoot(async (root) => {
+      if (handled) return;
+      handled = true;
+      try {
+        await activateRoot(root);
+        setPicked(true);
+        setBootDone(true);
+      } catch {
+        // ignore; fall through to picker
+      }
+    });
+    return unsub;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {

@@ -20,6 +20,7 @@ export interface FsnApi {
 
   onSearchResult(cb: (id: string, hits: SearchHit[]) => void): () => void;
   onFsEvent(cb: (event: FsEvent) => void):                     () => void;
+  onBootRoot(cb: (root: string) => void):                      () => void;
 }
 
 declare global {
