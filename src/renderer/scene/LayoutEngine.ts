@@ -18,8 +18,12 @@ export class LayoutEngine {
     const knownPaths = new Set(nodes.map(n => n.path));
 
     for (const n of nodes) {
+      // Skip the root itself: parentOf("C:/") returns "C:/" so without this
+      // guard the root ends up in its own children list and the BFS loops
+      // forever queuing it again on every iteration.
+      if (n.path === rootPath) continue;
       const parent = parentOf(n.path);
-      if (!knownPaths.has(parent) && n.path !== rootPath) continue;
+      if (!knownPaths.has(parent)) continue;
       if (!childrenByParent.has(parent)) childrenByParent.set(parent, []);
       childrenByParent.get(parent)!.push(n);
     }
