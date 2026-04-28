@@ -4,12 +4,17 @@ import { useUiStore } from '@renderer/state/uiStore';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import { useSearchHitsStore } from '@renderer/state/searchHitsStore';
+import { joinSegments } from '@renderer/util/paths';
 
 export function SearchBar() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
-  const idRef = useRef<string | null>(null);
-  const hits = useSearchHitsStore(s => idRef.current ? s.byId.get(idRef.current) ?? [] : []);
+  // activeId is React state (not a ref) so that the Zustand selector
+  // re-subscribes after a new search id is issued. With a ref, the selector
+  // identity didn't change and newly-arriving hits weren't reflected until
+  // some unrelated state updated.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const hits = useSearchHitsStore(s => activeId ? s.byId.get(activeId) ?? [] : []);
   const root = useFsStore(s => s.root);
 
   // Ctrl+F focus
@@ -23,15 +28,25 @@ export function SearchBar() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Mirror activeId in a ref so the debounce effect can read the
+  // most-recent id for cancellation without depending on `activeId`
+  // (which would re-trigger the effect immediately after setActiveId).
+  const activeIdRef = useRef<string | null>(null);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
   // debounce
   useEffect(() => {
     if (!root) return;
     const handle = setTimeout(async () => {
       if (!q || q.length < 2) return;
-      if (idRef.current) await fsn.searchCancel(idRef.current);
+      const prevId = activeIdRef.current;
+      if (prevId) {
+        await fsn.searchCancel(prevId);
+        // Drop stale hits for the previous id so memory doesn't grow.
+        useSearchHitsStore.getState().clear(prevId);
+      }
       const id = crypto.randomUUID();
-      idRef.current = id;
-      useSearchHitsStore.getState().clear(id);
+      setActiveId(id);
       try { await unwrap(fsn.search(root, q, id)); }
       catch (err) { useUiStore.getState().pushToast('error', String(err)); }
     }, 250);
@@ -64,7 +79,7 @@ export function SearchBar() {
                    const acc: string[] = [];
                    for (const s of segments) {
                      acc.push(s);
-                     const partial = acc[0]!.endsWith(':') ? acc[0] + '/' + acc.slice(1).join('/') : '/' + acc.join('/');
+                     const partial = joinSegments(acc);
                      if (useFsStore.getState().nodes.has(partial)) {
                        useFsStore.getState().setExpanded(partial, true);
                      }
