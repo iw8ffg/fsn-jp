@@ -6,6 +6,7 @@ interface Toast { id: string; level: 'info'|'error'; text: string; }
 type Modal =
   | { kind: 'newFolder'; parentPath: string }
   | { kind: 'rename'; targetPath: string; currentName: string }
+  | { kind: 'confirmDelete'; targetPath: string }
   | null;
 
 interface UiState {
