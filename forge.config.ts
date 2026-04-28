@@ -8,9 +8,10 @@ const config: ForgeConfig = {
     name: 'FSN-JP',
     executableName: 'fsn-jp',
     asar: true,
+    icon: 'resources/icon',
   },
   makers: [
-    new MakerSquirrel({ name: 'fsn-jp' }),
+    new MakerSquirrel({ name: 'fsn-jp', setupIcon: 'resources/icon.ico' }),
     new MakerZIP({}, ['win32']),
   ],
   plugins: [

@@ -1,7 +1,7 @@
 {
   "name": "fileexplorer",
   "version": "1.0.0",
-  "description": "",
+  "description": "FSN-JP - 3D file explorer inspired by Jurassic Park's File System Navigator",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
@@ -14,7 +14,7 @@
     "test:e2e": "playwright test"
   },
   "keywords": [],
-  "author": "",
+  "author": "Davide Scognamiglio",
   "license": "ISC",
   "packageManager": "pnpm@10.33.2",
   "pnpm": {
