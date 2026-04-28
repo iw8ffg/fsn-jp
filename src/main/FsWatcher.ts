@@ -31,13 +31,22 @@ export class FsWatcher {
     const root = normalizePath(rootPath);
     this.#watcher = chokidar.watch(root, {
       ignoreInitial: true,
-      // depth=1 keeps watcher cost bounded on drive roots like C:/ where
-      // depth=2 would register fs.watch handles on tens of thousands of
-      // subdirs and can hang or OOM the main process on Windows.
-      depth: 1,
+      // depth=0: only the root and its immediate children. Anything deeper
+      // (especially on Windows drive roots like C:/) can hang or OOM the
+      // main process trying to enumerate protected system dirs like
+      // "System Volume Information" or "$Recycle.Bin".
+      depth: 0,
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
-      // Don't crash main if a watched path becomes inaccessible mid-flight.
       ignorePermissionErrors: true,
+      ignored: [
+        // Skip Windows system dirs that commonly hang chokidar on access
+        /(^|\/)System Volume Information(\/|$)/i,
+        /(^|\/)\$Recycle\.Bin(\/|$)/i,
+        /(^|\/)pagefile\.sys$/i,
+        /(^|\/)swapfile\.sys$/i,
+        /(^|\/)hiberfil\.sys$/i,
+        /(^|\/)DumpStack\.log\.tmp$/i,
+      ],
     });
     this.#watcher.on('error', () => {
       // Swallow watcher errors — they would otherwise propagate as unhandled

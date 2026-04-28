@@ -70,14 +70,17 @@ async function activateRoot(root: string): Promise<void> {
   bootActivatedPath = root;
   try {
     // depth=1: just top-level entries. Deeper expansion happens on click.
-    // depth=2 on a Windows C:/ takes 30-60s for thousands of files.
     const children = await unwrap(fsn.listDir(root, 1));
     useFsStore.getState().upsertNodes([
       { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
       ...children,
     ]);
-    await fsn.watchRoot(root);
     useFsStore.getState().setRoot(root);
+    // Start the file watcher in the background — don't block the UI on it.
+    // chokidar setup on Windows drive roots can take a while; if it errors
+    // the renderer just won't get live fs events, which is degraded but
+    // not fatal.
+    void fsn.watchRoot(root).catch(() => { /* tolerated */ });
   } catch (err) {
     bootActivatedPath = null;
     throw err;
