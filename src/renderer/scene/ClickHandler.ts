@@ -37,8 +37,10 @@ export class ClickHandler {
 
     if (kind !== 'dir') return;
     const store = useFsStore.getState();
-    const wasExpanded = store.expanded.has(path);
-    if (!wasExpanded) {
+    const node = store.nodes.get(path);
+    // Only fetch children when we don't already have them. Re-collapsing then
+    // re-expanding a previously-loaded dir shouldn't re-issue the IPC.
+    if (!node?.childrenLoaded) {
       try {
         const children = await unwrap(fsn.listDir(path, 1));
         store.upsertNodes(children);
