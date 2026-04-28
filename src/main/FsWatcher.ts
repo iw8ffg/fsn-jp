@@ -17,11 +17,16 @@ export class FsWatcher {
   #watcher: FSWatcher | null = null;
   #pending: FsEvent[] = [];
   #flushTimer: NodeJS.Timeout | null = null;
+  #disposed = false;
+  #generation = 0;
 
   constructor(private win: BrowserWindow) {}
 
   async watch(rootPath: string): Promise<void> {
     await this.dispose();
+    this.#disposed = false;
+    this.#generation++;
+    const myGen = this.#generation;
     const root = normalizePath(rootPath);
     this.#watcher = chokidar.watch(root, {
       ignoreInitial: true,
@@ -29,14 +34,28 @@ export class FsWatcher {
       awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
     });
 
-    this.#watcher.on('add', (p) => this.#enqueueAdd(normalizePath(p), 'file'));
-    this.#watcher.on('addDir', (p) => this.#enqueueAdd(normalizePath(p), 'dir'));
-    this.#watcher.on('unlink', (p) => this.#enqueue({ type: 'remove', path: normalizePath(p) }));
-    this.#watcher.on('unlinkDir', (p) => this.#enqueue({ type: 'remove', path: normalizePath(p) }));
+    this.#watcher.on('add', (p) => {
+      if (this.#disposed || myGen !== this.#generation) return;
+      this.#enqueueAdd(normalizePath(p), 'file');
+    });
+    this.#watcher.on('addDir', (p) => {
+      if (this.#disposed || myGen !== this.#generation) return;
+      this.#enqueueAdd(normalizePath(p), 'dir');
+    });
+    this.#watcher.on('unlink', (p) => {
+      if (this.#disposed || myGen !== this.#generation) return;
+      this.#enqueue({ type: 'remove', path: normalizePath(p) });
+    });
+    this.#watcher.on('unlinkDir', (p) => {
+      if (this.#disposed || myGen !== this.#generation) return;
+      this.#enqueue({ type: 'remove', path: normalizePath(p) });
+    });
     this.#watcher.on('change', async (p) => {
+      if (this.#disposed || myGen !== this.#generation) return;
       const np = normalizePath(p);
       try {
         const stat = await fs.stat(np);
+        if (this.#disposed || myGen !== this.#generation) return;
         const node: FsNode = {
           path: np,
           parentPath: parentOf(np),
@@ -55,6 +74,7 @@ export class FsWatcher {
   }
 
   async dispose(): Promise<void> {
+    this.#disposed = true;
     if (this.#watcher) {
       await this.#watcher.close();
       this.#watcher = null;
@@ -63,11 +83,14 @@ export class FsWatcher {
       clearTimeout(this.#flushTimer);
       this.#flushTimer = null;
     }
+    this.#pending = [];
   }
 
   async #enqueueAdd(p: string, kind: 'file' | 'dir'): Promise<void> {
+    const myGen = this.#generation;
     try {
       const stat = await fs.stat(p);
+      if (this.#disposed || myGen !== this.#generation) return;
       const node: FsNode = {
         path: p,
         parentPath: parentOf(p),
@@ -85,6 +108,7 @@ export class FsWatcher {
   }
 
   #enqueue(ev: FsEvent): void {
+    if (this.#disposed) return;
     this.#pending.push(ev);
     if (!this.#flushTimer) {
       this.#flushTimer = setTimeout(() => this.#flush(), 100);
@@ -92,6 +116,7 @@ export class FsWatcher {
   }
 
   #flush(): void {
+    if (this.#disposed) return;
     const batch = this.#pending;
     this.#pending = [];
     this.#flushTimer = null;
