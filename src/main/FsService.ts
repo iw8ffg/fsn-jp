@@ -3,6 +3,10 @@ import { normalizePath, joinPath } from './util/path';
 import type { DriveInfo, FsNode } from '@shared/types';
 
 export class FsService {
+  // TODO(perf+enrich): A-Z is sequential; parallelize via Promise.all once it
+  // matters. Also populate label/totalBytes/freeBytes — currently DriveInfo
+  // fields are typed optional but never set. Defer to a dedicated drive-info
+  // task; do NOT block this MVP on it.
   async listDrives(): Promise<DriveInfo[]> {
     const drives: DriveInfo[] = [];
     for (let code = 'A'.charCodeAt(0); code <= 'Z'.charCodeAt(0); code++) {
