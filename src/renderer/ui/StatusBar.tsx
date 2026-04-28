@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useFsStore } from '@renderer/state/fsStore';
+import { useUiStore } from '@renderer/state/uiStore';
 
 function fmt(size: number): string {
   if (size < 1024) return `${size} B`;
@@ -10,6 +11,7 @@ function fmt(size: number): string {
 
 export function StatusBar() {
   const nodes = useFsStore(s => s.nodes);
+  const hiddenVisible = useUiStore(s => s.hiddenVisible);
   const [fps, setFps] = useState(0);
   useEffect(() => {
     let frames = 0, last = performance.now();
@@ -26,7 +28,12 @@ export function StatusBar() {
   }, []);
 
   let count = 0, total = 0;
-  for (const n of nodes.values()) { count++; total += n.size; }
+  for (const n of nodes.values()) {
+    if (n.isHidden && !hiddenVisible) continue;
+    count++;
+    if (n.kind === 'dir') continue;
+    total += n.size;
+  }
 
   return (
     <div style={{
