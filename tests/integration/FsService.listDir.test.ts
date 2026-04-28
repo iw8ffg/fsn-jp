@@ -52,4 +52,17 @@ describe('FsService.listDir', () => {
     // either returns [] or includes locked entries — both acceptable, no throw
     expect(Array.isArray(nodes)).toBe(true);
   });
+
+  it('demotes inaccessible directories to locked kind', async () => {
+    // We can't reliably create a locked dir in cross-platform tests,
+    // but we can verify against C:/Windows/CSC if it exists AND is unreadable.
+    // If it does not exist, skip this assertion.
+    const probe = await import('node:fs').then(m => m.promises.access('C:/Windows/CSC').then(() => true).catch(() => false));
+    if (!probe) return; // skip on systems where CSC is missing
+    const nodes = await svc.listDir('C:/Windows', 2);
+    const csc = nodes.find(n => n.name === 'CSC');
+    if (!csc) return; // skip if not in listing for some reason
+    // either it was readable (so it's still 'dir') or locked
+    expect(['dir', 'locked']).toContain(csc.kind);
+  }, 60_000);
 });

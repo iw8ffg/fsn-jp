@@ -53,10 +53,16 @@ export class FsService {
 
       if (isDir && depth > 1) {
         try {
+          // probe access; throws EACCES/EPERM if locked
+          await fs.readdir(full).then(() => {});
           await this.#walk(full, depth - 1, out);
           node.childrenLoaded = true;
-        } catch {
-          // tolerate per-dir failures
+        } catch (err: unknown) {
+          const e = err as NodeJS.ErrnoException;
+          if (e?.code === 'EACCES' || e?.code === 'EPERM') {
+            node.kind = 'locked';
+          }
+          // other errors are tolerated; childrenLoaded stays false
         }
       }
     }
