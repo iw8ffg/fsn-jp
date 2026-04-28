@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { SceneCanvas } from './scene/SceneCanvas';
 import { DrivePicker } from './ui/DrivePicker';
@@ -8,11 +8,13 @@ import { StatusBar } from './ui/StatusBar';
 import { Toasts } from './ui/Toasts';
 import { NewFolderDialog } from './ui/NewFolderDialog';
 import { RenameDialog } from './ui/RenameDialog';
+import { ConfirmDeleteDialog } from './ui/ConfirmDeleteDialog';
 import { fsn, unwrap } from './ipc/client';
 import { useFsStore } from './state/fsStore';
 import { useUiStore } from './state/uiStore';
 import { wireFsEvents } from './ipc/wireFsEvents';
 import { wireSearch } from './ipc/wireSearch';
+import { parentOf } from './util/paths';
 
 function useGlobalShortcuts() {
   useEffect(() => {
@@ -21,27 +23,31 @@ function useGlobalShortcuts() {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
       const sel = useFsStore.getState().selectedPath;
-      if (!sel) return;
 
       if (e.key === 'F2') {
+        if (!sel) return;
         const node = useFsStore.getState().nodes.get(sel);
         if (node) useUiStore.getState().openModal({ kind: 'rename', targetPath: sel, currentName: node.name });
+        return;
       }
       if (e.key === 'Delete') {
-        if (window.confirm(`Move "${sel}" to Trash?`)) {
-          try {
-            const { fsn, unwrap } = await import('./ipc/client');
-            await unwrap(fsn.trash(sel));
-            useFsStore.getState().removeNode(sel);
-          } catch (err) {
-            useUiStore.getState().pushToast('error', String(err));
-          }
-        }
+        if (!sel) return;
+        useUiStore.getState().openModal({ kind: 'confirmDelete', targetPath: sel });
+        return;
       }
       if (e.ctrlKey && e.key.toLowerCase() === 'n') {
-        const node = useFsStore.getState().nodes.get(sel);
-        const parent = node?.kind === 'dir' ? sel : sel.split('/').slice(0, -1).join('/');
+        // Ctrl+N falls back to the active root if nothing is selected.
+        const root = useFsStore.getState().root;
+        let parent: string | null = null;
+        if (sel) {
+          const node = useFsStore.getState().nodes.get(sel);
+          parent = node?.kind === 'dir' ? sel : parentOf(sel);
+        } else if (root) {
+          parent = root;
+        }
+        if (!parent) return;
         useUiStore.getState().openModal({ kind: 'newFolder', parentPath: parent });
+        return;
       }
     };
     window.addEventListener('keydown', handler);
@@ -49,28 +55,47 @@ function useGlobalShortcuts() {
   }, []);
 }
 
+// Module-level guard: tracks the path that activateRoot has already been
+// called with. Both the persisted-lastRoot effect, the `cfg:bootRoot`
+// listener and DrivePicker.onPicked all share this guard so we never
+// double-`watchRoot`. First caller wins.
+let bootActivatedPath: string | null = null;
+
 async function activateRoot(root: string): Promise<void> {
-  const children = await unwrap(fsn.listDir(root, 2));
-  useFsStore.getState().upsertNodes([
-    { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
-    ...children,
-  ]);
-  await fsn.watchRoot(root);
-  useFsStore.getState().setRoot(root);
+  if (bootActivatedPath !== null) {
+    // Already activated (either to this same path or to a different one).
+    // First caller wins; subsequent calls are no-ops.
+    return;
+  }
+  bootActivatedPath = root;
+  try {
+    const children = await unwrap(fsn.listDir(root, 2));
+    useFsStore.getState().upsertNodes([
+      { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
+      ...children,
+    ]);
+    await fsn.watchRoot(root);
+    useFsStore.getState().setRoot(root);
+  } catch (err) {
+    // Roll back on failure so a user-driven retry (e.g. picking another drive)
+    // can succeed. The renderer surfaces errors via toasts elsewhere.
+    bootActivatedPath = null;
+    throw err;
+  }
 }
 
 function App() {
   const [picked, setPicked] = useState(false);
   const [bootDone, setBootDone] = useState(false);
+  const bootActivatedRef = useRef(false);
   useGlobalShortcuts();
 
   // Listen for `--root=<path>` boot override from main. Subscribed early so
   // the message isn't lost if the renderer mounts before main sends it.
   useEffect(() => {
-    let handled = false;
     const unsub = fsn.onBootRoot(async (root) => {
-      if (handled) return;
-      handled = true;
+      if (bootActivatedRef.current) return;
+      bootActivatedRef.current = true;
       try {
         await activateRoot(root);
         setPicked(true);
@@ -92,12 +117,14 @@ function App() {
         if (cfg.hiddenVisible !== useUiStore.getState().hiddenVisible) {
           useUiStore.setState({ hiddenVisible: cfg.hiddenVisible });
         }
-        if (cfg.lastRoot) {
+        if (cfg.lastRoot && !bootActivatedRef.current) {
+          bootActivatedRef.current = true;
           try {
             await activateRoot(cfg.lastRoot);
             if (!cancelled) setPicked(true);
           } catch {
             // Saved root no longer accessible; fall through to DrivePicker.
+            bootActivatedRef.current = false;
           }
         }
       } catch {
@@ -126,9 +153,15 @@ function App() {
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       <SceneCanvas />
       {bootDone && !picked && <DrivePicker onPicked={async (root) => {
-        await activateRoot(root);
-        await fsn.saveConfig({ lastRoot: root, hiddenVisible: useUiStore.getState().hiddenVisible });
-        setPicked(true);
+        if (bootActivatedRef.current) return;
+        bootActivatedRef.current = true;
+        try {
+          await activateRoot(root);
+          await fsn.saveConfig({ lastRoot: root, hiddenVisible: useUiStore.getState().hiddenVisible });
+          setPicked(true);
+        } catch {
+          bootActivatedRef.current = false;
+        }
       }} />}
       {picked && <Toolbar />}
       {picked && <HUDOverlay />}
@@ -136,6 +169,7 @@ function App() {
       {picked && <Toasts />}
       {picked && <NewFolderDialog />}
       {picked && <RenameDialog />}
+      {picked && <ConfirmDeleteDialog />}
     </div>
   );
 }
