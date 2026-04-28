@@ -28,6 +28,16 @@ function App() {
   );
 }
 
-wireFsEvents();
-wireSearch();
+const disposeFsEvents = wireFsEvents();
+const disposeSearch = wireSearch();
 createRoot(document.getElementById('root')!).render(<App />);
+
+// Vite HMR: dispose the IPC subscriptions so we don't accumulate
+// listeners on every hot-reload of this entry module.
+const hot = (import.meta as { hot?: { dispose: (cb: () => void) => void } }).hot;
+if (hot) {
+  hot.dispose(() => {
+    disposeFsEvents?.();
+    disposeSearch?.();
+  });
+}
