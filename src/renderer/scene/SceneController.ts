@@ -1,7 +1,9 @@
+import * as THREE from 'three';
 import type { SceneRoot } from './SceneRoot';
 import { LayoutEngine } from './LayoutEngine';
 import { NodeRenderer } from './NodeRenderer';
 import { OrbitCameraController } from './OrbitCameraController';
+import { HoverPicker } from './HoverPicker';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import type { FsNode } from '@shared/types';
@@ -12,16 +14,27 @@ export class SceneController {
   readonly nodes: NodeRenderer;
   readonly camera: OrbitCameraController;
   readonly layout = new LayoutEngine();
+  readonly picker: HoverPicker;
   #unsubFs: () => void;
   #unsubCam: () => void;
+  #unsubHover: () => void;
+  // Track per-mesh original (shared) material so we can restore it on hover-out.
+  // NodeRenderer caches materials by category, so mutating emissiveIntensity on
+  // the shared material would highlight every mesh of that category. Instead,
+  // on hover-enter we clone the material, boost emissiveIntensity on the clone,
+  // and assign it to that mesh only; on hover-leave we restore the original
+  // shared material and dispose the clone.
+  #hoverOriginalMat: { mesh: THREE.Mesh; mat: THREE.Material | THREE.Material[] } | null = null;
 
   constructor(private root: SceneRoot, dom: HTMLElement) {
     this.nodes = new NodeRenderer();
     this.root.scene.add(this.nodes.group);
     this.camera = new OrbitCameraController(root.camera, dom);
+    this.picker = new HoverPicker(dom, root.camera, () => this.nodes.allMeshes());
 
     this.#unsubFs = useFsStore.subscribe(() => this.#rebuild());
     this.#unsubCam = useCameraStore.subscribe(() => this.#applyFocus());
+    this.#unsubHover = useFsStore.subscribe(() => this.#applyHover());
 
     this.root.setOnTick((dt) => this.camera.update(dt));
 
@@ -32,9 +45,47 @@ export class SceneController {
   dispose(): void {
     this.#unsubFs();
     this.#unsubCam();
+    this.#unsubHover();
+    this.#restoreHover();
+    this.picker.dispose();
     this.camera.dispose();
     this.root.scene.remove(this.nodes.group);
     this.nodes.dispose();
+  }
+
+  #applyHover = (() => {
+    let last: string | null = null;
+    return () => {
+      const path = useFsStore.getState().hoverPath;
+      if (path === last) return;
+      this.#restoreHover();
+      if (path) {
+        const m = this.nodes.meshAt(path) as THREE.Mesh | undefined;
+        if (m) {
+          const original = m.material;
+          // Only attempt to highlight standard-style materials with emissive.
+          const single = Array.isArray(original) ? null : (original as THREE.MeshStandardMaterial);
+          if (single && 'emissive' in single) {
+            const clone = single.clone();
+            clone.emissiveIntensity = 1.5;
+            // Ensure emissive color is visible even if base material was 0.
+            if (clone.emissive.getHex() === 0x000000) clone.emissive.copy(single.color);
+            m.material = clone;
+            this.#hoverOriginalMat = { mesh: m, mat: original };
+          }
+        }
+      }
+      last = path;
+    };
+  })();
+
+  #restoreHover(): void {
+    if (!this.#hoverOriginalMat) return;
+    const { mesh, mat } = this.#hoverOriginalMat;
+    const cloned = mesh.material as THREE.Material | THREE.Material[];
+    mesh.material = mat;
+    if (!Array.isArray(cloned)) cloned.dispose();
+    this.#hoverOriginalMat = null;
   }
 
   #rebuild(): void {
