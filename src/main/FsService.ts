@@ -1,4 +1,6 @@
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { shell } from 'electron';
 import { normalizePath, joinPath } from './util/path';
 import type { DriveInfo, FsNode } from '@shared/types';
 
@@ -69,6 +71,44 @@ export class FsService {
           // other errors are tolerated; childrenLoaded stays false
         }
       }
+    }
+  }
+
+  async mkdir(parent: string, name: string): Promise<string> {
+    this.#assertSafeName(name);
+    const p = joinPath(normalizePath(parent), name);
+    await fs.mkdir(p, { recursive: false });
+    return p;
+  }
+
+  async rename(target: string, newName: string): Promise<string> {
+    this.#assertSafeName(newName);
+    const dir = path.posix.dirname(normalizePath(target));
+    const next = joinPath(dir, newName);
+    await fs.rename(target, next);
+    return next;
+  }
+
+  async move(src: string, dst: string): Promise<void> {
+    await fs.rename(src, dst).catch(async err => {
+      if (err?.code !== 'EXDEV') throw err;
+      // cross-device fallback
+      await fs.cp(src, dst, { recursive: true });
+      await fs.rm(src, { recursive: true, force: true });
+    });
+  }
+
+  async copy(src: string, dst: string): Promise<void> {
+    await fs.cp(src, dst, { recursive: true, errorOnExist: true, force: false });
+  }
+
+  async trash(target: string): Promise<void> {
+    await shell.trashItem(target);
+  }
+
+  #assertSafeName(name: string): void {
+    if (!name || /[\\/:*?"<>|]/.test(name) || name === '.' || name === '..') {
+      throw new Error(`Invalid name: ${name}`);
     }
   }
 
