@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'node:path';
+import { FsService } from './FsService';
+import { registerIpc } from './IpcRouter';
 
 const isDev = !app.isPackaged;
 
@@ -24,7 +26,11 @@ async function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  const fsSvc = new FsService();
+  registerIpc(fsSvc);
+  return createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
