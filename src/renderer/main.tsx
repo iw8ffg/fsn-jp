@@ -69,7 +69,9 @@ async function activateRoot(root: string): Promise<void> {
   }
   bootActivatedPath = root;
   try {
-    const children = await unwrap(fsn.listDir(root, 2));
+    // depth=1: just top-level entries. Deeper expansion happens on click.
+    // depth=2 on a Windows C:/ takes 30-60s for thousands of files.
+    const children = await unwrap(fsn.listDir(root, 1));
     useFsStore.getState().upsertNodes([
       { path: root, parentPath: '', name: root, kind: 'dir', size: 0, mtimeMs: 0, isHidden: false, childrenLoaded: true },
       ...children,
@@ -77,8 +79,6 @@ async function activateRoot(root: string): Promise<void> {
     await fsn.watchRoot(root);
     useFsStore.getState().setRoot(root);
   } catch (err) {
-    // Roll back on failure so a user-driven retry (e.g. picking another drive)
-    // can succeed. The renderer surfaces errors via toasts elsewhere.
     bootActivatedPath = null;
     throw err;
   }
@@ -87,6 +87,8 @@ async function activateRoot(root: string): Promise<void> {
 function App() {
   const [picked, setPicked] = useState(false);
   const [bootDone, setBootDone] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
   const bootActivatedRef = useRef(false);
   useGlobalShortcuts();
 
@@ -155,14 +157,33 @@ function App() {
       {bootDone && !picked && <DrivePicker onPicked={async (root) => {
         if (bootActivatedRef.current) return;
         bootActivatedRef.current = true;
+        setActivating(true);
+        setBootError(null);
         try {
           await activateRoot(root);
           await fsn.saveConfig({ lastRoot: root, hiddenVisible: useUiStore.getState().hiddenVisible });
           setPicked(true);
-        } catch {
+        } catch (err) {
           bootActivatedRef.current = false;
+          setBootError((err as Error)?.message ?? String(err));
+        } finally {
+          setActivating(false);
         }
       }} />}
+      {activating && (
+        <div style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(10,14,20,0.85)', color: '#cfd8dc', fontFamily: 'monospace', zIndex: 100,
+        }}>Loading drive…</div>
+      )}
+      {bootError && !activating && !picked && (
+        <div style={{
+          position: 'absolute', bottom: 60, left: '50%', transform: 'translateX(-50%)',
+          background: '#3a1a1a', color: '#ff8a8a', padding: '10px 16px',
+          border: '1px solid #5a2a2a', borderRadius: 6, fontFamily: 'monospace',
+          maxWidth: 600, zIndex: 60,
+        }}>Failed: {bootError}</div>
+      )}
       {picked && <Toolbar />}
       {picked && <HUDOverlay />}
       {picked && <StatusBar />}
