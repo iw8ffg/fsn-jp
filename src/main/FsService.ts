@@ -72,9 +72,18 @@ export class FsService {
     }
   }
 
-  async #isHiddenWin(_p: string): Promise<boolean> {
-    // Stub: real Windows hidden attribute requires `winattr`-like native call.
-    // For MVP, rely on dotfile convention; extend in Task 8.
-    return false;
+  async #isHiddenWin(p: string): Promise<boolean> {
+    const base = p.split('/').pop() ?? '';
+    const HARDCODED = new Set([
+      'System Volume Information',
+      '$Recycle.Bin',
+      'pagefile.sys',
+      'hiberfil.sys',
+      'swapfile.sys',
+      'DumpStack.log',
+      'DumpStack.log.tmp',
+    ]);
+    if (HARDCODED.has(base)) return true;
+    return base.startsWith('.');
   }
 }
