@@ -6,7 +6,10 @@ import { colorForFile, fileTypeCategory } from './materials/fileTypeColors';
 export class NodeRenderer {
   readonly group = new THREE.Group();
   #pedestalGeom = new THREE.BoxGeometry(6, 0.6, 6);
-  #pedestalMat  = makePedestalMaterial();
+  // Per-path material cache: each pedestal hashes its own path through the
+  // palette in pedestalMaterial.ts, so the visible diversity is deterministic
+  // and stable across rebuilds.
+  #pedestalMatByPath = new Map<string, THREE.MeshStandardMaterial>();
   #lockedMat    = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
   #fileBlockGeom = new THREE.BoxGeometry(1, 1, 1);
   #fileMatByCategory = new Map<string, THREE.MeshStandardMaterial>();
@@ -16,7 +19,18 @@ export class NodeRenderer {
   upsertPedestal(node: FsNode, position: THREE.Vector3): THREE.Mesh {
     let mesh = this.#meshByPath.get(node.path) as THREE.Mesh | undefined;
     if (!mesh) {
-      mesh = new THREE.Mesh(this.#pedestalGeom, node.kind === 'locked' ? this.#lockedMat : this.#pedestalMat);
+      let mat: THREE.MeshStandardMaterial;
+      if (node.kind === 'locked') {
+        mat = this.#lockedMat;
+      } else {
+        let cached = this.#pedestalMatByPath.get(node.path);
+        if (!cached) {
+          cached = makePedestalMaterial(node.path);
+          this.#pedestalMatByPath.set(node.path, cached);
+        }
+        mat = cached;
+      }
+      mesh = new THREE.Mesh(this.#pedestalGeom, mat);
       mesh.userData.path = node.path;
       mesh.userData.kind = node.kind;
       this.group.add(mesh);
@@ -80,8 +94,11 @@ export class NodeRenderer {
     this.clear();
     this.#pedestalGeom.dispose();
     this.#fileBlockGeom.dispose();
-    if (this.#pedestalMat.map) this.#pedestalMat.map.dispose();
-    this.#pedestalMat.dispose();
+    for (const mat of this.#pedestalMatByPath.values()) {
+      if (mat.map) mat.map.dispose();
+      mat.dispose();
+    }
+    this.#pedestalMatByPath.clear();
     this.#lockedMat.dispose();
     for (const mat of this.#fileMatByCategory.values()) mat.dispose();
     this.#fileMatByCategory.clear();
