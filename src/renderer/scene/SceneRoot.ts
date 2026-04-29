@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { createSkydome } from './Skydome';
 
 export class SceneRoot {
   readonly scene = new THREE.Scene();
@@ -15,18 +16,26 @@ export class SceneRoot {
   #onTick: ((dt: number) => void) | null = null;
   #last = performance.now();
   #grid: THREE.GridHelper;
+  #skydome: THREE.Mesh;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setClearColor(0x000000);
-    // ACES filmic tone mapping with reduced exposure for grounded, less
-    // blown-out FSN look — closer to the Jurassic Park original.
+    // Clear color matches the horizon stop of the skydome so any sliver of
+    // unrendered background blends seamlessly with the haze.
+    this.renderer.setClearColor(0xc89478);
+    // ACES filmic tone mapping; exposure nudged up since the lit sky now
+    // contributes ambient brightness — keeps overall image from feeling muddy.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.85;
+    this.renderer.toneMappingExposure = 0.95;
 
-    // Denser exponential fog deepens the FSN void around the radial spread.
-    this.scene.fog = new THREE.FogExp2(0x000000, 0.018);
+    // Linear fog tinted to the horizon stop. Distant pedestals dissolve into
+    // the orange-tan haze instead of fading into a black void. 60..280 keeps
+    // the near radial cluster crisp while the far ring softly recedes.
+    this.scene.fog = new THREE.Fog(0xc89478, 60, 280);
+
+    this.#skydome = createSkydome();
+    this.scene.add(this.#skydome);
 
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 8000);
     this.camera.position.set(0, 25, -45);
@@ -39,13 +48,14 @@ export class SceneRoot {
     dir.position.set(50, 80, 30);
     this.scene.add(hemi, dir);
 
-    // Steel-blue grid floor — desaturated relative to the original neon-cyan
-    // version, lower opacity so it whispers rather than shouts.
-    this.#grid = new THREE.GridHelper(2000, 200, 0x335577, 0x162636);
+    // Deep-teal / sage grid floor. Cool greens read as a clean complement to
+    // the warm peach sky and stay legible without shouting; opacity bumped to
+    // 0.7 because the brighter sky would otherwise wash the lines out.
+    this.#grid = new THREE.GridHelper(2000, 200, 0x224a4a, 0x3a6a55);
     this.#grid.position.y = -0.51;
     const gridMat = this.#grid.material as THREE.LineBasicMaterial;
     gridMat.transparent = true;
-    gridMat.opacity = 0.4;
+    gridMat.opacity = 0.7;
     gridMat.fog = true; // r0.165 LineBasicMaterial supports .fog
     this.scene.add(this.#grid);
 
@@ -55,7 +65,9 @@ export class SceneRoot {
     // layout yet; resize() will fix it.
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.25, 0.4, 0.85);
+    // Bloom dialled down: with a bright sky most of the frame is already
+    // luminous, so only the brightest neon-emissive highlights should bleed.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.15, 0.4, 0.95);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
   }
@@ -89,6 +101,11 @@ export class SceneRoot {
     this.scene.remove(this.#grid);
     this.#grid.geometry.dispose();
     (this.#grid.material as THREE.Material).dispose();
+    this.scene.remove(this.#skydome);
+    this.#skydome.geometry.dispose();
+    const skyMat = this.#skydome.material as THREE.MeshBasicMaterial;
+    if (skyMat.map) skyMat.map.dispose();
+    skyMat.dispose();
     this.bloom.dispose();
     this.composer.dispose();
     this.renderer.dispose();
