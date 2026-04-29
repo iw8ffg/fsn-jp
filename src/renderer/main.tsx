@@ -14,6 +14,7 @@ import { ConfirmDeleteDialog } from './ui/ConfirmDeleteDialog';
 import { fsn, unwrap } from './ipc/client';
 import { useFsStore } from './state/fsStore';
 import { useUiStore } from './state/uiStore';
+import { useMarkersStore } from './state/markersStore';
 import { wireFsEvents } from './ipc/wireFsEvents';
 import { wireSearch } from './ipc/wireSearch';
 import { parentOf } from './util/paths';
@@ -119,6 +120,9 @@ function App() {
         if (cfg.hiddenVisible !== useUiStore.getState().hiddenVisible) {
           useUiStore.setState({ hiddenVisible: cfg.hiddenVisible });
         }
+        if (cfg.markers && cfg.markers.length > 0) {
+          useMarkersStore.getState().setAll(cfg.markers);
+        }
         if (cfg.lastRoot && !bootActivatedRef.current) {
           bootActivatedRef.current = true;
           try {
@@ -145,7 +149,23 @@ function App() {
       (s) => s.hiddenVisible,
       (hiddenVisible) => {
         const lastRoot = useFsStore.getState().root ?? undefined;
-        void fsn.saveConfig({ lastRoot, hiddenVisible });
+        const markers = useMarkersStore.getState().list();
+        void fsn.saveConfig({ lastRoot, hiddenVisible, markers });
+      },
+    );
+    return unsub;
+  }, [bootDone]);
+
+  // Persist marker changes after boot hydration.
+  useEffect(() => {
+    if (!bootDone) return;
+    const unsub = useMarkersStore.subscribe(
+      (s) => s.byId,
+      () => {
+        const lastRoot = useFsStore.getState().root ?? undefined;
+        const hiddenVisible = useUiStore.getState().hiddenVisible;
+        const markers = useMarkersStore.getState().list();
+        void fsn.saveConfig({ lastRoot, hiddenVisible, markers });
       },
     );
     return unsub;
@@ -161,7 +181,11 @@ function App() {
         setBootError(null);
         try {
           await activateRoot(root);
-          await fsn.saveConfig({ lastRoot: root, hiddenVisible: useUiStore.getState().hiddenVisible });
+          await fsn.saveConfig({
+            lastRoot: root,
+            hiddenVisible: useUiStore.getState().hiddenVisible,
+            markers: useMarkersStore.getState().list(),
+          });
           setPicked(true);
         } catch (err) {
           bootActivatedRef.current = false;

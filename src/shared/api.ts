@@ -1,7 +1,9 @@
 import type { DriveInfo, FsEvent, FsNode, SearchHit } from './types';
 import type { IpcResult } from './ipc';
 
-export interface AppConfig { lastRoot?: string; hiddenVisible: boolean; }
+export interface Marker { id: string; path: string; name: string; }
+
+export interface AppConfig { lastRoot?: string; hiddenVisible: boolean; markers?: Marker[]; }
 
 export interface FsnApi {
   listDrives():                                   Promise<IpcResult<DriveInfo[]>>;
