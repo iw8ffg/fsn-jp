@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { SceneRoot } from './SceneRoot';
 import { LayoutEngine } from './LayoutEngine';
 import { NodeRenderer } from './NodeRenderer';
-import { EdgeRenderer } from './EdgeRenderer';
 import { OrbitCameraController } from './OrbitCameraController';
 import { HoverPicker } from './HoverPicker';
 import { ClickHandler } from './ClickHandler';
@@ -20,7 +19,6 @@ const GRID_FALLBACK_THRESHOLD = 200;
 export class SceneController {
   readonly nodes: NodeRenderer;
   readonly labels: LabelRenderer;
-  readonly edges: EdgeRenderer;
   readonly camera: OrbitCameraController;
   readonly layout = new LayoutEngine();
   readonly picker: HoverPicker;
@@ -46,8 +44,6 @@ export class SceneController {
     this.root.scene.add(this.nodes.group);
     this.labels = new LabelRenderer();
     this.root.scene.add(this.labels.group);
-    this.edges = new EdgeRenderer();
-    this.root.scene.add(this.edges.object);
     this.camera = new OrbitCameraController(root.camera, dom);
     this.picker = new HoverPicker(dom, root.camera, () => this.nodes.allMeshes());
     this.click = new ClickHandler(dom, root.camera, () => this.nodes.allMeshes());
@@ -91,8 +87,6 @@ export class SceneController {
     this.nodes.dispose();
     this.root.scene.remove(this.labels.group);
     this.labels.dispose();
-    this.root.scene.remove(this.edges.object);
-    this.edges.dispose();
     this.root.scene.remove(this.beam.object);
     this.beam.dispose();
   }
@@ -103,14 +97,11 @@ export class SceneController {
     const mesh = this.nodes.meshAt(path) as THREE.Mesh | undefined;
     if (!mesh) { this.beam.hide(); return; }
     // Compute the world-space top of the mesh so the beam's bottom rests
-    // on it. mesh.position.y is the *center* of the mesh (file blocks are
-    // scaled in Y; pedestals have unit cylinder geometry of height 1).
-    const scaleY = mesh.scale.y || 1;
-    // Pedestal cylinder geometry has height 1; file block geometry has
-    // height 1 with scale.y = computed file height. Either way the top
-    // sits at position.y + scaleY/2 (assuming geometry height is 1, which
-    // is true for both pedestal and file block).
-    const top = mesh.position.y + scaleY / 2;
+    // on it. Pedestal box has geometry height 0.6 (flat tile), file block
+    // has geometry height 1 scaled in Y by computed file height.
+    const kind = mesh.userData.kind as 'dir' | 'file' | 'locked' | undefined;
+    const geomHeight = kind === 'file' ? 1 : 0.6;
+    const top = mesh.position.y + (geomHeight * mesh.scale.y) / 2;
     this.beam.showAt(new THREE.Vector3(mesh.position.x, top, mesh.position.z));
   }
 
@@ -196,20 +187,6 @@ export class SceneController {
       }
     }
 
-    const pairs: { from: THREE.Vector3; to: THREE.Vector3 }[] = [];
-    for (const n of visible) {
-      if (n.path === root) continue;
-      if (n.kind !== 'dir' && n.kind !== 'locked') continue;
-      const parent = parentOf(n.path);
-      const pParent = positions.get(parent);
-      const pChild = positions.get(n.path);
-      if (!pParent || !pChild) continue;
-      pairs.push({
-        from: new THREE.Vector3(pParent.x, pParent.y + 0.5, pParent.z),
-        to: new THREE.Vector3(pChild.x, pChild.y + 0.5, pChild.z),
-      });
-    }
-    this.edges.setEdges(pairs);
     // Selection beam may need repositioning if the selected mesh moved
     // (re-layout after expand/collapse) or if it just appeared.
     this.#applySelection();

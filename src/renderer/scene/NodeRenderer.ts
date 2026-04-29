@@ -12,22 +12,6 @@ export class NodeRenderer {
   #fileMatByCategory = new Map<string, THREE.MeshStandardMaterial>();
   #meshByPath = new Map<string, THREE.Object3D>();
   #fileBlocks = new Map<string, THREE.Mesh>();
-  // Shared wireframe-glow overlays — one EdgesGeometry per source geometry,
-  // one LineBasicMaterial reused across all overlays.
-  #pedestalEdgeGeom = new THREE.EdgesGeometry(this.#pedestalGeom);
-  #fileEdgeGeom = new THREE.EdgesGeometry(this.#fileBlockGeom);
-  #edgeMat = new THREE.LineBasicMaterial({
-    color: 0x6a8aa0,
-    transparent: true,
-    opacity: 0.55,
-    fog: true,
-  });
-
-  #attachEdges(mesh: THREE.Mesh, edgeGeom: THREE.BufferGeometry): void {
-    const edges = new THREE.LineSegments(edgeGeom, this.#edgeMat);
-    edges.raycast = () => {}; // do not block raycasting on parent mesh
-    mesh.add(edges);
-  }
 
   upsertPedestal(node: FsNode, position: THREE.Vector3): THREE.Mesh {
     let mesh = this.#meshByPath.get(node.path) as THREE.Mesh | undefined;
@@ -35,7 +19,6 @@ export class NodeRenderer {
       mesh = new THREE.Mesh(this.#pedestalGeom, node.kind === 'locked' ? this.#lockedMat : this.#pedestalMat);
       mesh.userData.path = node.path;
       mesh.userData.kind = node.kind;
-      this.#attachEdges(mesh, this.#pedestalEdgeGeom);
       this.group.add(mesh);
       this.#meshByPath.set(node.path, mesh);
     }
@@ -63,12 +46,10 @@ export class NodeRenderer {
       mesh = new THREE.Mesh(this.#fileBlockGeom, mat);
       mesh.userData.path = node.path;
       mesh.userData.kind = 'file';
-      this.#attachEdges(mesh, this.#fileEdgeGeom);
       this.group.add(mesh);
       this.#fileBlocks.set(node.path, mesh);
       this.#meshByPath.set(node.path, mesh);
     } else {
-      // material may have changed (rare — rename across category)
       mesh.material = mat;
     }
     mesh.scale.set(1, height, 1);
@@ -99,9 +80,6 @@ export class NodeRenderer {
     this.clear();
     this.#pedestalGeom.dispose();
     this.#fileBlockGeom.dispose();
-    this.#pedestalEdgeGeom.dispose();
-    this.#fileEdgeGeom.dispose();
-    this.#edgeMat.dispose();
     if (this.#pedestalMat.map) this.#pedestalMat.map.dispose();
     this.#pedestalMat.dispose();
     this.#lockedMat.dispose();
