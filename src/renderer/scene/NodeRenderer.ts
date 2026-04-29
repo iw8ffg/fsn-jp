@@ -17,9 +17,9 @@ export class NodeRenderer {
   #pedestalEdgeGeom = new THREE.EdgesGeometry(this.#pedestalGeom);
   #fileEdgeGeom = new THREE.EdgesGeometry(this.#fileBlockGeom);
   #edgeMat = new THREE.LineBasicMaterial({
-    color: 0x66dfff,
+    color: 0x6a8aa0,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.55,
     fog: true,
   });
 
@@ -51,7 +51,7 @@ export class NodeRenderer {
       mat = new THREE.MeshStandardMaterial({
         color: hex,
         emissive: hex,
-        emissiveIntensity: 0.55,
+        emissiveIntensity: 0.18,
         roughness: 0.45,
         metalness: 0.0,
       });

@@ -8,9 +8,9 @@ import * as THREE from 'three';
 export class EdgeRenderer {
   #geom = new THREE.BufferGeometry();
   #mat = new THREE.LineBasicMaterial({
-    color: 0x39c4ff,
+    color: 0x88aacc,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.45,
     fog: true,
   });
   #lines: THREE.LineSegments;

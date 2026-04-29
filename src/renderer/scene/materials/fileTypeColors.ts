@@ -1,14 +1,14 @@
 const CATEGORIES: Record<string, number> = {
-  code:    0x4dd0e1, // TS/JS/PY/RS/GO/JAVA — cyan-bright, dominant FSN color
-  doc:     0xb6e0ff, // MD/TXT/PDF — light blue
-  data:    0x4ade80, // JSON/CSV/YAML — neon green
-  image:   0xff7a00, // PNG/JPG/SVG — neon orange
-  video:   0xff3366, // hot pink/magenta
-  audio:   0xa78bfa, // neon violet
-  archive: 0xfde047, // ZIP/RAR/7Z — neon yellow
-  exec:    0xff1744, // EXE/BAT/MSI — neon red
-  config:  0x94a3b8, // cool gray-blue
-  default: 0x607d8b, // steel blue
+  code:    0x6cb2d9, // TS/JS/PY/RS/GO/JAVA — steel cyan, dominant FSN tone
+  doc:     0xc8d4e0, // MD/TXT/PDF — light blue-gray
+  data:    0x8fb86a, // JSON/CSV/YAML — olive green
+  image:   0xd99c5c, // PNG/JPG/SVG — warm orange
+  video:   0xb84a6a, // muted magenta
+  audio:   0x8a6fb0, // muted purple
+  archive: 0xc4b85a, // ZIP/RAR/7Z — mustard
+  exec:    0xc94a4a, // EXE/BAT/MSI — dull red
+  config:  0x808a94, // cool gray
+  default: 0x6c7680,
 };
 
 const EXT_MAP: Record<string, keyof typeof CATEGORIES> = {
