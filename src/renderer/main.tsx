@@ -5,6 +5,8 @@ import { DrivePicker } from './ui/DrivePicker';
 import { Toolbar } from './ui/Toolbar';
 import { HUDOverlay } from './ui/HUDOverlay';
 import { StatusBar } from './ui/StatusBar';
+import { SidePanel } from './ui/SidePanel';
+import { Speedometer } from './ui/Speedometer';
 import { Toasts } from './ui/Toasts';
 import { NewFolderDialog } from './ui/NewFolderDialog';
 import { RenameDialog } from './ui/RenameDialog';
@@ -183,6 +185,8 @@ function App() {
         }}>Failed: {bootError}</div>
       )}
       {picked && <Toolbar />}
+      {picked && <SidePanel />}
+      {picked && <Speedometer />}
       {picked && <HUDOverlay />}
       {picked && <StatusBar />}
       {picked && <Toasts />}

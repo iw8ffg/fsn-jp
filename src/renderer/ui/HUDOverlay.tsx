@@ -30,7 +30,7 @@ export function HUDOverlay() {
           ? <span style={{ color: '#5cd0e8' }}>● SELECTED</span>
           : <span style={{ color: '#7a8a9a' }}>▸ HOVER</span>}
       </div>
-      <div style={{ color: '#7da4d8' }}>{node.kind.toUpperCase()}</div>
+      <div style={{ color: '#b89770' }}>{node.kind.toUpperCase()}</div>
       <div style={{ fontSize: 14, marginTop: 4 }}>{node.name}</div>
       <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{node.path}</div>
       {node.kind === 'file' && <div style={{ fontSize: 11, marginTop: 4 }}>size: {fmt(node.size)}</div>}
