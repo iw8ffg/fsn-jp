@@ -30,6 +30,9 @@ export class SceneController {
   #unsubHover: () => void;
   #unsubSelected: () => void;
   #unsubUi: () => void;
+  #unsubFlightSpeed: () => void;
+  #unsubZoomLevel: () => void;
+  #lastTelemetry = 0;
   // Track per-mesh original (shared) material so we can restore it on hover-out.
   // NodeRenderer caches materials by category, so mutating emissiveIntensity on
   // the shared material would highlight every mesh of that category. Instead,
@@ -66,7 +69,35 @@ export class SceneController {
     // Selector form: only fires when hiddenVisible changes, not on toast/modal churn.
     this.#unsubUi = useUiStore.subscribe((s) => s.hiddenVisible, () => this.#rebuild());
 
-    this.root.setOnTick((dt) => this.camera.update(dt));
+    // Slider → camera wiring. flightSpeed [0..1] maps to defaultDurationMs
+    // 2000ms (slow) → 200ms (fast). zoomLevel directly drives orbit distance.
+    const applyFlightSpeed = (v: number) => {
+      this.camera.defaultDurationMs = lerp(2000, 200, v);
+    };
+    applyFlightSpeed(useCameraStore.getState().flightSpeed);
+    this.#unsubFlightSpeed = useCameraStore.subscribe((s) => s.flightSpeed, applyFlightSpeed);
+
+    this.#unsubZoomLevel = useCameraStore.subscribe((s) => s.zoomLevel, (d) => {
+      this.camera.setDistance(d);
+    });
+
+    // Reflect manual wheel zoom back into the store so the slider tracks.
+    // Setting zoomLevel here would re-trigger #unsubZoomLevel above; that
+    // invokes setDistance with the same value, which is idempotent — fine.
+    this.camera.onWheelZoom = (d) => {
+      useCameraStore.getState().setZoomLevel(d);
+    };
+
+    this.root.setOnTick((dt) => {
+      this.camera.update(dt);
+      // Throttle telemetry to ~5Hz; high-frequency setSpeed re-renders the
+      // Speedometer subscriber needlessly.
+      const now = performance.now();
+      if (now - this.#lastTelemetry > 200) {
+        useCameraStore.getState().setSpeed(this.camera.getCurrentSpeed());
+        this.#lastTelemetry = now;
+      }
+    });
 
     // Initial build in case state is already populated.
     this.#rebuild();
@@ -78,6 +109,9 @@ export class SceneController {
     this.#unsubHover();
     this.#unsubSelected();
     this.#unsubUi();
+    this.#unsubFlightSpeed();
+    this.#unsubZoomLevel();
+    this.camera.onWheelZoom = null;
     this.#restoreHover();
     this.drag.dispose();
     this.click.dispose();
@@ -202,3 +236,5 @@ export class SceneController {
     this.camera.flyTo(mesh.position.clone(), { distance: 50 });
   }
 }
+
+function lerp(a: number, b: number, t: number): number { return a + (b - a) * t; }

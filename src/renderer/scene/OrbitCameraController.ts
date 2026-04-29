@@ -22,6 +22,13 @@ export class OrbitCameraController {
   #pointerDown = false;
   #last = { x: 0, y: 0 };
   #dom: HTMLElement;
+  #prevPos = new THREE.Vector3();
+  #currentSpeed = 0;
+  #hasPrevPos = false;
+  /** Default flyTo duration in ms when `opts.durationMs` is omitted. */
+  defaultDurationMs = 600;
+  /** Optional callback invoked after wheel zoom changes the distance. */
+  onWheelZoom: ((distance: number) => void) | null = null;
 
   constructor(private camera: THREE.PerspectiveCamera, dom: HTMLElement) {
     this.#dom = dom;
@@ -56,8 +63,22 @@ export class OrbitCameraController {
       from: { target: this.#target.clone(), state: { ...this.#state } },
       to:   { target: t.clone(),            state: to },
       t: 0,
-      dur: (opts.durationMs ?? 600) / 1000,
+      dur: (opts.durationMs ?? this.defaultDurationMs) / 1000,
     };
+  }
+
+  /**
+   * Programmatically set the orbit distance (used by the side-panel zoom
+   * slider). Cancels any in-flight flyTo so the slider value sticks.
+   */
+  setDistance(d: number): void {
+    this.#fly = null;
+    this.#state.distance = clamp(d, 5, 1000);
+  }
+
+  /** Returns the most recently computed camera speed in units per second. */
+  getCurrentSpeed(): number {
+    return this.#currentSpeed;
   }
 
   update(dt: number): void {
@@ -71,6 +92,15 @@ export class OrbitCameraController {
       if (this.#fly.t >= this.#fly.dur) this.#fly = null;
     }
     this.#applyImmediate();
+    // Speed telemetry: distance moved this frame divided by dt. Skip on the
+    // very first tick (no previous position yet) and on dt<=0 to avoid NaN.
+    if (this.#hasPrevPos && dt > 0) {
+      this.#currentSpeed = this.camera.position.distanceTo(this.#prevPos) / dt;
+    } else {
+      this.#currentSpeed = 0;
+    }
+    this.#prevPos.copy(this.camera.position);
+    this.#hasPrevPos = true;
   }
 
   #applyImmediate(): void {
@@ -101,6 +131,7 @@ export class OrbitCameraController {
     e.preventDefault();
     this.#fly = null;
     this.#state.distance = clamp(this.#state.distance * (1 + Math.sign(e.deltaY) * 0.1), 5, 1000);
+    this.onWheelZoom?.(this.#state.distance);
   };
 }
 
