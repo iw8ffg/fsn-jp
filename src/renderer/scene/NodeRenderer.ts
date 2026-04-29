@@ -5,7 +5,7 @@ import { colorForFile, fileTypeCategory } from './materials/fileTypeColors';
 
 export class NodeRenderer {
   readonly group = new THREE.Group();
-  #pedestalGeom = new THREE.CylinderGeometry(5, 5, 1, 32);
+  #pedestalGeom = new THREE.BoxGeometry(6, 0.6, 6);
   #pedestalMat  = makePedestalMaterial();
   #lockedMat    = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
   #fileBlockGeom = new THREE.BoxGeometry(1, 1, 1);

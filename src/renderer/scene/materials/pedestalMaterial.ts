@@ -2,20 +2,20 @@ import * as THREE from 'three';
 
 export function makePedestalMaterial(): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({
-    color: 0x2a2f38,
-    metalness: 0.05,
-    roughness: 0.7,
-    emissive: 0x000000,
-    emissiveIntensity: 0,
+    color: 0x2a8a9a,
+    metalness: 0.1,
+    roughness: 0.6,
+    emissive: 0x1a4a55,
+    emissiveIntensity: 0.4,
   });
-  // Grid pattern via canvas texture — subtle steel strokes on warm dark gray
-  // so the top of the cylinder reads as a stone-like FSN platform.
+  // Subtle grid pattern: lighter teal strokes on the base teal so the tile
+  // reads as an FSN-style platform without a strong distracting pattern.
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#2a2f38';
+  ctx.fillStyle = '#2a8a9a';
   ctx.fillRect(0, 0, 64, 64);
-  ctx.strokeStyle = '#5a7a90';
+  ctx.strokeStyle = 'rgba(93,197,209,0.25)';
   ctx.lineWidth = 1;
   for (let i = 0; i <= 64; i += 8) {
     ctx.beginPath();
