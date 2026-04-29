@@ -13,26 +13,47 @@ const dir = (path: string): FsNode => ({
   childrenLoaded: true,
 });
 
-describe('LayoutEngine', () => {
+describe('LayoutEngine (tree)', () => {
   it('places single root at origin', () => {
     const layout = new LayoutEngine();
     const positions = layout.computeFor([dir('C:/r')], 'C:/r');
     expect(positions.get('C:/r')!.toArray()).toEqual([0, 0, 0]);
   });
 
-  it('places children on a circle around parent', () => {
+  it('lays children out coplanar (Y=0) at z = LEVEL_DEPTH on distinct X', () => {
     const layout = new LayoutEngine();
     const nodes: FsNode[] = [
       dir('C:/r'), dir('C:/r/a'), dir('C:/r/b'), dir('C:/r/c'), dir('C:/r/d'),
     ];
     const positions = layout.computeFor(nodes, 'C:/r');
-    const a = positions.get('C:/r/a')!;
-    const b = positions.get('C:/r/b')!;
-    // children at same Y as parent (top of pedestal)
-    expect(a.y).toBeCloseTo(b.y, 5);
-    // distance from parent equal
-    expect(a.length()).toBeCloseTo(b.length(), 4);
-    expect(a.length()).toBeGreaterThan(0);
+    const children = ['C:/r/a', 'C:/r/b', 'C:/r/c', 'C:/r/d'].map(p => positions.get(p)!);
+    // All at pedestal level (Y=0).
+    for (const c of children) expect(c.y).toBeCloseTo(0, 6);
+    // All at the same depth z = levelDepth (default 18).
+    const z0 = children[0]!.z;
+    expect(z0).toBeGreaterThan(0);
+    for (const c of children) expect(c.z).toBeCloseTo(z0, 6);
+    // No two siblings share an X.
+    const xs = children.map(c => c.x);
+    const unique = new Set(xs);
+    expect(unique.size).toBe(xs.length);
+  });
+
+  it('grandchildren land at z = 2 * LEVEL_DEPTH', () => {
+    const layout = new LayoutEngine();
+    const nodes: FsNode[] = [
+      dir('C:/r'), dir('C:/r/a'), dir('C:/r/a/x'), dir('C:/r/a/y'),
+    ];
+    const positions = layout.computeFor(nodes, 'C:/r');
+    const child = positions.get('C:/r/a')!;
+    const gx = positions.get('C:/r/a/x')!;
+    const gy = positions.get('C:/r/a/y')!;
+    expect(child.z).toBeCloseTo(18, 6);
+    expect(gx.z).toBeCloseTo(36, 6);
+    expect(gy.z).toBeCloseTo(36, 6);
+    // grandchildren are centered around their parent's X
+    const mid = (gx.x + gy.x) / 2;
+    expect(mid).toBeCloseTo(child.x, 5);
   });
 
   it('is deterministic for same input', () => {
