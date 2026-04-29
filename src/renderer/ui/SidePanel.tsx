@@ -1,6 +1,7 @@
 import React from 'react';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import { useFsStore } from '@renderer/state/fsStore';
+import { useMarkersStore } from '@renderer/state/markersStore';
 import { parentOf } from '@renderer/util/paths';
 
 const ACCENT = '#b89770';
@@ -102,7 +103,116 @@ export function SidePanel() {
       </PanelButton>
 
       <SectionHeader>MARKERS</SectionHeader>
-      <div style={{ fontSize: 11, opacity: 0.6 }}>coming soon</div>
+      <MarkersSection />
     </div>
+  );
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+function MarkersSection() {
+  // Subscribe via a stable selector. We project byId into a sorted-by-name
+  // array; React re-renders only when byId reference changes (Map is replaced
+  // immutably on add/remove in the store).
+  const markers = useMarkersStore(s => Array.from(s.byId.values()));
+  const selected = useFsStore(s => s.selectedPath);
+  const focus = useCameraStore(s => s.focusPath);
+  const candidate = selected ?? focus;
+  const candidateNode = useFsStore(s => candidate ? s.nodes.get(candidate) ?? null : null);
+  const alreadyMarked = !!candidate && markers.some(m => m.path === candidate);
+
+  const onAdd = () => {
+    if (!candidate || !candidateNode || alreadyMarked) return;
+    const id = crypto.randomUUID();
+    useMarkersStore.getState().add({ id, path: candidate, name: candidateNode.name });
+  };
+  const onRecall = (path: string) => useCameraStore.getState().setFocus(path);
+  const onRemove = (id: string) => useMarkersStore.getState().remove(id);
+
+  return (
+    <>
+      <PanelButton
+        onClick={onAdd}
+        disabled={!candidate || !candidateNode || alreadyMarked}
+      >
+        {alreadyMarked ? '✓ Marked' : '+ Add Marker'}
+      </PanelButton>
+
+      {markers.length === 0 ? (
+        <div style={{ fontSize: 11, opacity: 0.55, fontStyle: 'italic', marginTop: 4 }}>
+          no markers
+        </div>
+      ) : (
+        <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 2 }}>
+          {markers.map(m => (
+            <MarkerRow
+              key={m.id}
+              name={m.name}
+              path={m.path}
+              onRecall={() => onRecall(m.path)}
+              onRemove={() => onRemove(m.id)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function MarkerRow(props: {
+  name: string;
+  path: string;
+  onRecall: () => void;
+  onRemove: () => void;
+}) {
+  const [hover, setHover] = React.useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={props.path}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '4px 6px', marginBottom: 2,
+        background: hover ? BTN_BG_HOVER : 'transparent',
+        border: `1px solid ${hover ? BORDER : 'transparent'}`,
+        fontSize: 11,
+      }}
+    >
+      <span style={{ flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+        {truncate(props.name, 20)}
+      </span>
+      <RowButton onClick={props.onRecall} title="Recall camera">↪</RowButton>
+      <RowButton onClick={props.onRemove} title="Remove marker" danger>×</RowButton>
+    </div>
+  );
+}
+
+function RowButton(props: {
+  onClick: () => void;
+  children: React.ReactNode;
+  title: string;
+  danger?: boolean;
+}) {
+  const [hover, setHover] = React.useState(false);
+  const baseColor = props.danger ? '#c98080' : TEXT;
+  const hoverColor = props.danger ? '#ff8080' : ACCENT;
+  return (
+    <button
+      onClick={props.onClick}
+      title={props.title}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: 'transparent',
+        border: 'none',
+        color: hover ? hoverColor : baseColor,
+        fontFamily: 'monospace', fontSize: 13,
+        cursor: 'pointer', padding: '0 4px',
+        lineHeight: 1,
+      }}
+    >{props.children}</button>
   );
 }
