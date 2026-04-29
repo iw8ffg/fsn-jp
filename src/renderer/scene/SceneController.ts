@@ -9,6 +9,7 @@ import { DragController } from './DragController';
 import { LabelRenderer } from './LabelRenderer';
 import { SelectionBeam } from './SelectionBeam';
 import { MarkerRenderer } from './MarkerRenderer';
+import { ConnectorRenderer } from './ConnectorRenderer';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import { useUiStore } from '@renderer/state/uiStore';
@@ -28,6 +29,7 @@ export class SceneController {
   readonly drag: DragController;
   readonly beam: SelectionBeam;
   readonly markers: MarkerRenderer;
+  readonly connectors: ConnectorRenderer;
   #unsubFs: () => void;
   #unsubCam: () => void;
   #unsubHover: () => void;
@@ -60,6 +62,8 @@ export class SceneController {
     this.root.scene.add(this.beam.object);
     this.markers = new MarkerRenderer();
     this.root.scene.add(this.markers.group);
+    this.connectors = new ConnectorRenderer();
+    this.root.scene.add(this.connectors.group);
 
     // Selective subscription: only rebuild when the structural fields change.
     // Without this, every hover update (which is high-frequency) re-runs
@@ -134,6 +138,8 @@ export class SceneController {
     this.beam.dispose();
     this.root.scene.remove(this.markers.group);
     this.markers.dispose();
+    this.root.scene.remove(this.connectors.group);
+    this.connectors.dispose();
   }
 
   #applySelection(): void {
@@ -233,6 +239,21 @@ export class SceneController {
       }
     }
 
+    // Connector lines: one segment per visible non-root dir/locked node,
+    // from its parent's position to its own. Files are intentionally
+    // excluded — they sit on top of their parent pedestal already.
+    const segments: { from: THREE.Vector3; to: THREE.Vector3 }[] = [];
+    for (const n of visible) {
+      if (n.path === root) continue;
+      if (n.kind !== 'dir' && n.kind !== 'locked') continue;
+      const childPos = positions.get(n.path);
+      if (!childPos) continue;
+      const parentPos = positions.get(parentOf(n.path));
+      if (!parentPos) continue;
+      segments.push({ from: parentPos, to: childPos });
+    }
+    this.connectors.setSegments(segments);
+
     // Selection beam may need repositioning if the selected mesh moved
     // (re-layout after expand/collapse) or if it just appeared.
     this.#applySelection();
@@ -266,7 +287,15 @@ export class SceneController {
     const mesh = this.nodes.meshAt(focus);
     if (!mesh) return;
     this.#lastFocus = focus;
-    this.camera.flyTo(mesh.position.clone(), { distance: 50 });
+    // FSN-style oblique arrival: every focus flight settles to a fixed
+    // slightly-downward polar so the destination pedestal is viewed at
+    // the same angle the original SGI demo used. Without forcing polar
+    // here, the camera would arrive at whatever tilt the user happened
+    // to be at — sometimes nearly horizontal, sometimes more pitched.
+    this.camera.flyTo(mesh.position.clone(), {
+      distance: 50,
+      polar: Math.PI / 2 - 0.28,
+    });
   }
 }
 

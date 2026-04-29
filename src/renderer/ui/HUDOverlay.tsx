@@ -20,7 +20,7 @@ export function HUDOverlay() {
   const isSelected = selected === path;
   return (
     <div style={{
-      position: 'absolute', bottom: 36, left: 12, padding: '10px 14px',
+      position: 'absolute', bottom: 36, left: 232, padding: '10px 14px',
       background: 'rgba(10,14,20,0.85)', color: '#cfd8dc',
       border: '1px solid #2a3a55', borderRadius: 6, fontFamily: 'monospace',
       pointerEvents: 'none', minWidth: 220,
