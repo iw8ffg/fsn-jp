@@ -17,7 +17,7 @@ interface FlyOptions {
 
 export class OrbitCameraController {
   #target = new THREE.Vector3();
-  #state: OrbitState = { distance: 50, polar: Math.PI / 2 - 0.15, azimuth: 0 };
+  #state: OrbitState = { distance: 50, polar: Math.PI / 2 - 0.15, azimuth: -Math.PI / 2 };
   #fly: { from: { target: THREE.Vector3; state: OrbitState }; to: { target: THREE.Vector3; state: OrbitState }; t: number; dur: number } | null = null;
   #pointerDown = false;
   #last = { x: 0, y: 0 };

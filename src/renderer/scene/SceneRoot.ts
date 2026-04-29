@@ -29,7 +29,7 @@ export class SceneRoot {
     this.scene.fog = new THREE.FogExp2(0x000000, 0.018);
 
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 8000);
-    this.camera.position.set(60, 60, 80);
+    this.camera.position.set(0, 25, -45);
 
     // Hemi at slightly higher intensity so pedestals read as actual material
     // rather than self-glowing slabs. Directional warm-tinted to imply a
