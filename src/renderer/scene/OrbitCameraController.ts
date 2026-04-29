@@ -2,6 +2,14 @@ import * as THREE from 'three';
 
 interface OrbitState { distance: number; polar: number; azimuth: number; }
 
+// Constrain camera to near-horizontal navigation, like the FSN in the film:
+// the user yaws around the scene at roughly eye level, with only a small
+// vertical tilt. polar = 0 looks straight down, polar = PI looks straight up;
+// PI/2 is exactly horizontal. We allow ~70°..95° (slight downward tilt to
+// straight-on at most).
+const POLAR_MIN = Math.PI / 2 - 0.35; // ~70° (slight downward look)
+const POLAR_MAX = Math.PI / 2 + 0.05; // ~93° (just below horizontal)
+
 interface FlyOptions {
   distance?: number; polar?: number; azimuth?: number;
   durationMs?: number;
@@ -9,7 +17,7 @@ interface FlyOptions {
 
 export class OrbitCameraController {
   #target = new THREE.Vector3();
-  #state: OrbitState = { distance: 50, polar: Math.PI / 4, azimuth: 0 };
+  #state: OrbitState = { distance: 50, polar: Math.PI / 2 - 0.15, azimuth: 0 };
   #fly: { from: { target: THREE.Vector3; state: OrbitState }; to: { target: THREE.Vector3; state: OrbitState }; t: number; dur: number } | null = null;
   #pointerDown = false;
   #last = { x: 0, y: 0 };
@@ -41,7 +49,7 @@ export class OrbitCameraController {
   flyTo(t: THREE.Vector3, opts: FlyOptions = {}): void {
     const to: OrbitState = {
       distance: opts.distance ?? this.#state.distance,
-      polar:    opts.polar    ?? this.#state.polar,
+      polar:    clamp(opts.polar ?? this.#state.polar, POLAR_MIN, POLAR_MAX),
       azimuth:  opts.azimuth  ?? this.#state.azimuth,
     };
     this.#fly = {
@@ -87,7 +95,7 @@ export class OrbitCameraController {
     this.#last.x = e.clientX; this.#last.y = e.clientY;
     this.#fly = null;
     this.#state.azimuth -= dx * 0.005;
-    this.#state.polar   = clamp(this.#state.polar - dy * 0.005, 0.05, Math.PI - 0.05);
+    this.#state.polar   = clamp(this.#state.polar - dy * 0.005, POLAR_MIN, POLAR_MAX);
   };
   #onWheel = (e: WheelEvent) => {
     e.preventDefault();

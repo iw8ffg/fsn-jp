@@ -193,6 +193,6 @@ export class SceneController {
     const mesh = this.nodes.meshAt(focus);
     if (!mesh) return;
     this.#lastFocus = focus;
-    this.camera.flyTo(mesh.position.clone(), { distance: 50, polar: Math.PI / 4 });
+    this.camera.flyTo(mesh.position.clone(), { distance: 50 });
   }
 }
