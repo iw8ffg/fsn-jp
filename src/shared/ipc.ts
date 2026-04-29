@@ -6,6 +6,7 @@ export const IPC = {
   copy:         'fs:copy',
   rename:       'fs:rename',
   trash:        'fs:trash',
+  openPath:     'fs:openPath',
   mkdir:        'fs:mkdir',
   search:       'fs:search',
   searchCancel: 'fs:searchCancel',

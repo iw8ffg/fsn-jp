@@ -11,6 +11,7 @@ export interface FsnApi {
   copy(src: string, dst: string):                 Promise<IpcResult<void>>;
   rename(path: string, newName: string):          Promise<IpcResult<string>>;
   trash(path: string):                            Promise<IpcResult<void>>;
+  openPath(path: string):                         Promise<IpcResult<void>>;
   mkdir(parent: string, name: string):            Promise<IpcResult<string>>;
   search(root: string, query: string, id: string): Promise<IpcResult<void>>;
   searchCancel(id: string):                       Promise<IpcResult<void>>;

@@ -11,6 +11,7 @@ const api: FsnApi = {
   copy:       (s, d) => ipcRenderer.invoke(IPC.copy, s, d),
   rename:     (p, name) => ipcRenderer.invoke(IPC.rename, p, name),
   trash:      (p) => ipcRenderer.invoke(IPC.trash, p),
+  openPath:   (p) => ipcRenderer.invoke(IPC.openPath, p),
   mkdir:      (parent, name) => ipcRenderer.invoke(IPC.mkdir, parent, name),
   search:     (root, q, id) => ipcRenderer.invoke(IPC.search, root, q, id),
   searchCancel: (id) => ipcRenderer.invoke(IPC.searchCancel, id),

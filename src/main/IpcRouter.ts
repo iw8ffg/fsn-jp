@@ -31,6 +31,7 @@ export function registerIpc(
   ipcMain.handle(IPC.move,       async (_e, s: string, d: string)         => safe(() => fsSvc.move(s, d)));
   ipcMain.handle(IPC.copy,       async (_e, s: string, d: string)         => safe(() => fsSvc.copy(s, d)));
   ipcMain.handle(IPC.trash,      async (_e, p: string)                    => safe(() => fsSvc.trash(p)));
+  ipcMain.handle(IPC.openPath,   async (_e, p: string)                    => safe(() => fsSvc.openPath(p)));
   ipcMain.handle(IPC.watchRoot,  async (_e, p: string)                    => safe(() => watcher.watch(p)));
   ipcMain.handle(IPC.search,     async (_e, root: string, query: string, id: string) =>
     safe(async () => {

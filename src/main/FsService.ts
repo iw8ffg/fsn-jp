@@ -107,6 +107,11 @@ export class FsService {
     await shell.trashItem(target);
   }
 
+  async openPath(p: string): Promise<void> {
+    const err = await shell.openPath(p);
+    if (err) throw new Error(err);
+  }
+
   #assertSafeName(name: string): void {
     if (!name || /[\\/:*?"<>|]/.test(name) || name === '.' || name === '..') {
       throw new Error(`Invalid name: ${name}`);
