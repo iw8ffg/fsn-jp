@@ -12,7 +12,7 @@ const CANVAS_H = 256;
 // Texture aspect 4:1 — sprite scale 8:2 keeps the label readable in world space
 // without distortion.
 const SPRITE_SCALE = new THREE.Vector3(8, 2, 1);
-const Y_OFFSET = 1.5;
+const Y_OFFSET = -1.0;
 const FONT = '600 96px "Segoe UI", Helvetica, Arial, sans-serif';
 const TEXT_COLOR = '#e8edf2';
 const BACKPLATE_FILL = 'rgba(10,14,20,0.7)';
