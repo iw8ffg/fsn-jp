@@ -8,9 +8,11 @@ import { ClickHandler } from './ClickHandler';
 import { DragController } from './DragController';
 import { LabelRenderer } from './LabelRenderer';
 import { SelectionBeam } from './SelectionBeam';
+import { MarkerRenderer } from './MarkerRenderer';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import { useUiStore } from '@renderer/state/uiStore';
+import { useMarkersStore } from '@renderer/state/markersStore';
 import { parentOf } from '@renderer/util/paths';
 import type { FsNode } from '@shared/types';
 
@@ -25,6 +27,7 @@ export class SceneController {
   readonly click: ClickHandler;
   readonly drag: DragController;
   readonly beam: SelectionBeam;
+  readonly markers: MarkerRenderer;
   #unsubFs: () => void;
   #unsubCam: () => void;
   #unsubHover: () => void;
@@ -32,6 +35,8 @@ export class SceneController {
   #unsubUi: () => void;
   #unsubFlightSpeed: () => void;
   #unsubZoomLevel: () => void;
+  #unsubMarkers: () => void;
+  #lastPositions: Map<string, THREE.Vector3> = new Map();
   #lastTelemetry = 0;
   // Track per-mesh original (shared) material so we can restore it on hover-out.
   // NodeRenderer caches materials by category, so mutating emissiveIntensity on
@@ -53,6 +58,8 @@ export class SceneController {
     this.drag = new DragController(dom, root.camera, root.scene, () => this.nodes.allMeshes());
     this.beam = new SelectionBeam();
     this.root.scene.add(this.beam.object);
+    this.markers = new MarkerRenderer();
+    this.root.scene.add(this.markers.group);
 
     // Selective subscription: only rebuild when the structural fields change.
     // Without this, every hover update (which is high-frequency) re-runs
@@ -68,6 +75,7 @@ export class SceneController {
     this.#unsubSelected = useFsStore.subscribe((s) => s.selectedPath, () => this.#applySelection());
     // Selector form: only fires when hiddenVisible changes, not on toast/modal churn.
     this.#unsubUi = useUiStore.subscribe((s) => s.hiddenVisible, () => this.#rebuild());
+    this.#unsubMarkers = useMarkersStore.subscribe((s) => s.byId, () => this.#syncMarkers());
 
     // Slider → camera wiring. flightSpeed [0..1] maps to defaultDurationMs
     // 2000ms (slow) → 200ms (fast). zoomLevel directly drives orbit distance.
@@ -111,6 +119,7 @@ export class SceneController {
     this.#unsubUi();
     this.#unsubFlightSpeed();
     this.#unsubZoomLevel();
+    this.#unsubMarkers();
     this.camera.onWheelZoom = null;
     this.#restoreHover();
     this.drag.dispose();
@@ -123,6 +132,8 @@ export class SceneController {
     this.labels.dispose();
     this.root.scene.remove(this.beam.object);
     this.beam.dispose();
+    this.root.scene.remove(this.markers.group);
+    this.markers.dispose();
   }
 
   #applySelection(): void {
@@ -199,6 +210,7 @@ export class SceneController {
     }
 
     const positions = this.layout.computeFor(visible, root);
+    this.#lastPositions = positions;
 
     const visiblePaths = new Set(visible.map(v => v.path));
     for (const m of this.nodes.allMeshes()) {
@@ -224,6 +236,27 @@ export class SceneController {
     // Selection beam may need repositioning if the selected mesh moved
     // (re-layout after expand/collapse) or if it just appeared.
     this.#applySelection();
+    this.#syncMarkers();
+  }
+
+  /**
+   * Reconciles MarkerRenderer with the markers store using the most
+   * recently computed layout positions. Markers whose path is not in
+   * the current view are simply omitted (not rendered) until the
+   * pedestal becomes visible again.
+   */
+  #syncMarkers(): void {
+    const wanted = useMarkersStore.getState().list();
+    const wantedPaths = new Set<string>();
+    for (const m of wanted) {
+      const pos = this.#lastPositions.get(m.path);
+      if (!pos) continue;
+      this.markers.upsert(m.path, pos);
+      wantedPaths.add(m.path);
+    }
+    for (const p of this.markers.paths()) {
+      if (!wantedPaths.has(p)) this.markers.remove(p);
+    }
   }
 
   #applyFocus(): void {
