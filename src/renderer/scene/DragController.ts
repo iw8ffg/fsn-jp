@@ -99,9 +99,14 @@ export class DragController {
       ev.stopImmediatePropagation();
       ev.preventDefault();
       this.dom.removeEventListener('click', swallow, { capture: true });
+      this.dom.removeEventListener('dblclick', swallow, { capture: true });
     };
     this.dom.addEventListener('click', swallow, { capture: true });
-    setTimeout(() => this.dom.removeEventListener('click', swallow, { capture: true }), 0);
+    this.dom.addEventListener('dblclick', swallow, { capture: true });
+    setTimeout(() => {
+      this.dom.removeEventListener('click', swallow, { capture: true });
+      this.dom.removeEventListener('dblclick', swallow, { capture: true });
+    }, 0);
 
     if (!target) return;
     const dstParent = target.userData.path as string;

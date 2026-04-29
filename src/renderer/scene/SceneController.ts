@@ -8,6 +8,7 @@ import { HoverPicker } from './HoverPicker';
 import { ClickHandler } from './ClickHandler';
 import { DragController } from './DragController';
 import { LabelRenderer } from './LabelRenderer';
+import { SelectionBeam } from './SelectionBeam';
 import { useFsStore } from '@renderer/state/fsStore';
 import { useCameraStore } from '@renderer/state/cameraStore';
 import { useUiStore } from '@renderer/state/uiStore';
@@ -25,9 +26,11 @@ export class SceneController {
   readonly picker: HoverPicker;
   readonly click: ClickHandler;
   readonly drag: DragController;
+  readonly beam: SelectionBeam;
   #unsubFs: () => void;
   #unsubCam: () => void;
   #unsubHover: () => void;
+  #unsubSelected: () => void;
   #unsubUi: () => void;
   // Track per-mesh original (shared) material so we can restore it on hover-out.
   // NodeRenderer caches materials by category, so mutating emissiveIntensity on
@@ -49,6 +52,8 @@ export class SceneController {
     this.picker = new HoverPicker(dom, root.camera, () => this.nodes.allMeshes());
     this.click = new ClickHandler(dom, root.camera, () => this.nodes.allMeshes());
     this.drag = new DragController(dom, root.camera, root.scene, () => this.nodes.allMeshes());
+    this.beam = new SelectionBeam();
+    this.root.scene.add(this.beam.object);
 
     // Selective subscription: only rebuild when the structural fields change.
     // Without this, every hover update (which is high-frequency) re-runs
@@ -61,6 +66,7 @@ export class SceneController {
     );
     this.#unsubCam = useCameraStore.subscribe(() => this.#applyFocus());
     this.#unsubHover = useFsStore.subscribe((s) => s.hoverPath, () => this.#applyHover());
+    this.#unsubSelected = useFsStore.subscribe((s) => s.selectedPath, () => this.#applySelection());
     // Selector form: only fires when hiddenVisible changes, not on toast/modal churn.
     this.#unsubUi = useUiStore.subscribe((s) => s.hiddenVisible, () => this.#rebuild());
 
@@ -74,6 +80,7 @@ export class SceneController {
     this.#unsubFs();
     this.#unsubCam();
     this.#unsubHover();
+    this.#unsubSelected();
     this.#unsubUi();
     this.#restoreHover();
     this.drag.dispose();
@@ -86,6 +93,25 @@ export class SceneController {
     this.labels.dispose();
     this.root.scene.remove(this.edges.object);
     this.edges.dispose();
+    this.root.scene.remove(this.beam.object);
+    this.beam.dispose();
+  }
+
+  #applySelection(): void {
+    const path = useFsStore.getState().selectedPath;
+    if (!path) { this.beam.hide(); return; }
+    const mesh = this.nodes.meshAt(path) as THREE.Mesh | undefined;
+    if (!mesh) { this.beam.hide(); return; }
+    // Compute the world-space top of the mesh so the beam's bottom rests
+    // on it. mesh.position.y is the *center* of the mesh (file blocks are
+    // scaled in Y; pedestals have unit cylinder geometry of height 1).
+    const scaleY = mesh.scale.y || 1;
+    // Pedestal cylinder geometry has height 1; file block geometry has
+    // height 1 with scale.y = computed file height. Either way the top
+    // sits at position.y + scaleY/2 (assuming geometry height is 1, which
+    // is true for both pedestal and file block).
+    const top = mesh.position.y + scaleY / 2;
+    this.beam.showAt(new THREE.Vector3(mesh.position.x, top, mesh.position.z));
   }
 
   #applyHover = (() => {
@@ -184,6 +210,9 @@ export class SceneController {
       });
     }
     this.edges.setEdges(pairs);
+    // Selection beam may need repositioning if the selected mesh moved
+    // (re-layout after expand/collapse) or if it just appeared.
+    this.#applySelection();
   }
 
   #applyFocus(): void {
